@@ -65,7 +65,7 @@ npm install
 npm run dev
 ```
 
-3. Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+3. Open [https://citeflowai.xyz](https://citeflowai.xyz) with your browser to see the live app.
 
 ## 📄 License
 MIT License
