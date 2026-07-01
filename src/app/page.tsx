@@ -1,65 +1,110 @@
-import Image from "next/image";
+import Link from 'next/link'
+import { createClient } from '@/utils/supabase/server'
 
-export default function Home() {
+// Simple time formatter
+function timeAgo(dateString: string) {
+  const seconds = Math.floor((new Date().getTime() - new Date(dateString).getTime()) / 1000)
+  if (seconds < 60) return 'Just now'
+  const minutes = Math.floor(seconds / 60)
+  if (minutes < 60) return `${minutes}m ago`
+  const hours = Math.floor(minutes / 60)
+  if (hours < 24) return `${hours}h ago`
+  return `${Math.floor(hours / 24)}d ago`
+}
+
+export default async function LandingPage() {
+  const supabase = await createClient()
+
+  // Fetch the latest 3 settled payments to display real network activity
+  const { data: recentPayments } = await supabase
+    .from('payment_authorizations')
+    .select(`
+      authorization_id,
+      amount_usdc,
+      created_at,
+      sources (
+        title
+      )
+    `)
+    .eq('status', 'settled')
+    .order('created_at', { ascending: false })
+    .limit(3)
+
+  const hasLiveActivity = recentPayments && recentPayments.length > 0
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
+    <div className="flex-1 flex flex-col pt-12 md:pt-24 section-spacing content-container">
+      <div className="grid lg:grid-cols-2 gap-16 lg:gap-8 items-center">
+        
+        {/* Left: Editorial Copy */}
+        <section className="flex flex-col max-w-[620px]">
+          <h1 className="text-5xl md:text-6xl lg:text-7xl font-serif font-bold leading-[1.1] mb-6 text-[var(--color-ink)]">
+            Sources deserve<br />a share.
           </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
+          <p className="text-lg md:text-xl font-sans text-[var(--color-soft-ink)] mb-10 leading-relaxed">
+            CiteFlow is an editorial research terminal powered by autonomous AI. When the agent uses your registered work to synthesize an answer, you receive instant nanopayments on the Arc Testnet.
           </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
+          
+          <div className="flex flex-col sm:flex-row gap-4">
+            <Link 
+              href="/research" 
+              className="btn btn-primary"
+            >
+              Start researching
+            </Link>
+            <Link 
+              href="/register-article" 
+              className="btn btn-secondary"
+            >
+              Register your work
+            </Link>
+          </div>
+        </section>
+
+        {/* Right: Structural Ledger Representation */}
+        <section className="w-full lg:max-w-[480px] lg:ml-auto">
+          <div className="card-panel shadow-sm overflow-hidden flex flex-col">
+            <div className="bg-[var(--color-ink)] text-[var(--color-paper)] p-4 flex items-center justify-between border-b border-[var(--color-border-subtle)]">
+              <span className="font-sans font-medium text-sm">Live Citations</span>
+              <span className="font-mono text-xs text-[var(--color-signal-green)] bg-[var(--color-signal-green)]/10 px-2 py-1 rounded">Arc Testnet</span>
+            </div>
+            <div className="flex flex-col divide-y divide-[var(--color-border-subtle)] bg-white">
+              {hasLiveActivity ? (
+                recentPayments.map((payment: any, index: number) => (
+                  <div key={payment.authorization_id} className={`p-4 flex items-start justify-between ${index === 2 ? 'opacity-60' : ''}`}>
+                    <div className="overflow-hidden pr-4">
+                      <p className="font-sans font-medium text-sm text-[var(--color-ink)] mb-1 truncate" title={payment.sources?.title || 'Unknown Source'}>
+                        {payment.sources?.title || 'Unknown Source'}
+                      </p>
+                      <p className="font-mono text-xs text-[var(--color-olive)] truncate">
+                        Tx: {payment.authorization_id.substring(0, 10)}...
+                      </p>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <p className="font-mono font-medium text-sm text-[var(--color-ink)]">
+                        +{(parseFloat(payment.amount_usdc) * 0.80).toFixed(2)} USDC
+                      </p>
+                      <p className="font-sans text-xs text-[var(--color-soft-ink)]">
+                        {timeAgo(payment.created_at)}
+                      </p>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="p-8 text-center text-[var(--color-olive)] font-mono text-sm">
+                  Waiting for first network transaction...
+                </div>
+              )}
+            </div>
+            <div className="bg-[var(--color-paper)] p-3 text-center border-t border-[var(--color-border-subtle)]">
+              <span className="font-mono text-xs text-[var(--color-olive)] uppercase tracking-wider">
+                {hasLiveActivity ? 'Live Network Activity' : 'Simulated Network Activity'}
+              </span>
+            </div>
+          </div>
+        </section>
+
+      </div>
     </div>
-  );
+  )
 }
