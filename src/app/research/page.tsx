@@ -1,15 +1,84 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import WalletModal from '@/components/WalletModal'
+import { Copy, LogOut, Check } from 'lucide-react'
+import { W3SSdk } from '@circle-fin/w3s-pw-web-sdk'
 
 export default function ResearchWorkspacePage() {
   const [query, setQuery] = useState('')
   const [maxBudget, setMaxBudget] = useState('0.50')
   const [loading, setLoading] = useState(false)
   const [progressLog, setProgressLog] = useState<string[]>([])
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [result, setResult] = useState<any>(null)
   const [error, setError] = useState<string | null>(null)
+  const [isWalletModalOpen, setIsWalletModalOpen] = useState(false)
+  const [walletAddress, setWalletAddress] = useState<string | null>(null)
+  const [walletBalance, setWalletBalance] = useState<string | null>(null)
+  const [userToken, setUserToken] = useState<string | null>(null)
+  const [encryptionKey, setEncryptionKey] = useState<string | null>(null)
+  const [isCopied, setIsCopied] = useState(false)
+  const [sdk, setSdk] = useState<W3SSdk | null>(null)
+
+  // Load from localStorage on mount
+  useEffect(() => {
+    const savedAddress = localStorage.getItem('circle_wallet_address')
+    const savedToken = localStorage.getItem('circle_user_token')
+    const savedEncKey = localStorage.getItem('circle_encryption_key')
+    if (savedAddress) setWalletAddress(savedAddress)
+    if (savedToken) setUserToken(savedToken)
+    if (savedEncKey) setEncryptionKey(savedEncKey)
+
+    if (savedToken) {
+      fetch('/api/circle/wallet', {
+        headers: { 'Authorization': `Bearer ${savedToken}` }
+      })
+      .then(res => res.ok ? res.json() : Promise.reject('Failed'))
+      .then(data => {
+        if (data.balance) setWalletBalance(data.balance)
+      })
+      .catch(console.error)
+    }
+
+    if (!sdk) {
+      const circleSdk = new W3SSdk({
+        appSettings: { appId: process.env.NEXT_PUBLIC_CIRCLE_APP_ID as string }
+      })
+      setSdk(circleSdk)
+    }
+  }, [sdk])
+
+  const handleCopy = () => {
+    if (walletAddress) {
+      if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(walletAddress)
+      } else {
+        const textArea = document.createElement("textarea")
+        textArea.value = walletAddress
+        document.body.appendChild(textArea)
+        textArea.select()
+        try {
+          document.execCommand('copy')
+        } catch (err) {
+          console.error('Copy failed', err)
+        }
+        document.body.removeChild(textArea)
+      }
+      setIsCopied(true)
+      setTimeout(() => setIsCopied(false), 2000)
+    }
+  }
+
+  const handleLogout = () => {
+    setWalletAddress(null)
+    setWalletBalance(null)
+    setUserToken(null)
+    setEncryptionKey(null)
+    localStorage.removeItem('circle_wallet_address')
+    localStorage.removeItem('circle_user_token')
+    localStorage.removeItem('circle_encryption_key')
+    window.dispatchEvent(new Event('wallet_changed'))
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -19,10 +88,49 @@ export default function ResearchWorkspacePage() {
     setProgressLog([])
 
     try {
+      if (!userToken || !walletAddress || !encryptionKey || !sdk) {
+        throw new Error('Wallet not fully connected. Please disconnect and reconnect.');
+      }
+
+      setProgressLog(prev => [...prev, 'Initiating Pay-Per-Prompt transfer...'])
+      
+      const paymentRes = await fetch('/api/circle/payment/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userToken, walletAddress: walletAddress, amount: maxBudget })
+      })
+
+      if (!paymentRes.ok) {
+        const errText = await paymentRes.text()
+        try {
+          throw new Error(JSON.parse(errText).error || 'Payment challenge failed')
+        } catch {
+          throw new Error(errText || 'Payment challenge failed')
+        }
+      }
+
+      const { challengeId } = await paymentRes.json()
+      
+      setProgressLog(prev => [...prev, 'Awaiting PIN authorization for upfront payment...'])
+
+      // Promisify the SDK execution
+      await new Promise<void>((resolve, reject) => {
+        sdk.setAuthentication({ userToken, encryptionKey })
+        sdk.execute(challengeId, (err, result) => {
+          if (err) {
+            reject(new Error(err.message || 'Payment authorization failed'))
+          } else {
+            resolve()
+          }
+        })
+      })
+
+      setProgressLog(prev => [...prev, 'Payment authorized successfully!', 'Booting autonomous AI agent...'])
+
       const res = await fetch('/api/research', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query, maxBudget: parseFloat(maxBudget) })
+        body: JSON.stringify({ query, maxBudget: parseFloat(maxBudget), walletAddress })
       })
 
       if (!res.ok) {
@@ -47,7 +155,6 @@ export default function ResearchWorkspacePage() {
 
         buffer += decoder.decode(value, { stream: true })
         
-        // Process NDJSON chunks
         const lines = buffer.split('\n')
         buffer = lines.pop() || ''
 
@@ -125,15 +232,54 @@ export default function ResearchWorkspacePage() {
             </div>
           </div>
           
-          <button
-            type="submit"
-            disabled={loading}
-            className="btn btn-primary w-full md:w-auto"
-          >
-            {loading ? 'Executing...' : 'Run Agent'}
-          </button>
+          <div className="flex flex-col gap-2 w-full md:w-auto">
+            {walletAddress ? (
+              <button
+                type="submit"
+                disabled={loading}
+                className="btn btn-primary w-full"
+              >
+                {loading ? 'Executing...' : 'Ask AI'}
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  setIsWalletModalOpen(true);
+                }}
+                className="btn btn-primary w-full"
+              >
+                Connect Wallet
+              </button>
+            )}
+          </div>
         </div>
       </form>
+
+      <WalletModal 
+        isOpen={isWalletModalOpen} 
+        onClose={() => setIsWalletModalOpen(false)} 
+        onSuccess={(address, token, encKey) => {
+          setWalletAddress(address)
+          setUserToken(token)
+          setEncryptionKey(encKey)
+          localStorage.setItem('circle_wallet_address', address)
+          localStorage.setItem('circle_user_token', token)
+          localStorage.setItem('circle_encryption_key', encKey)
+          window.dispatchEvent(new Event('wallet_changed'))
+          setIsWalletModalOpen(false)
+          
+          fetch('/api/circle/wallet', {
+            headers: { 'Authorization': `Bearer ${token}` }
+          })
+          .then(res => res.ok ? res.json() : Promise.reject('Failed'))
+          .then(data => {
+            if (data.balance) setWalletBalance(data.balance)
+          })
+          .catch(console.error)
+        }} 
+      />
 
       {error && (
         <div className="mb-8 p-4 border border-[var(--color-rust)] text-[var(--color-rust)] bg-[var(--color-rust)]/5 font-mono text-sm rounded">

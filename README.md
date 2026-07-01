@@ -22,6 +22,15 @@ With CiteFlowAI, creators register their articles on-chain with a set licensing 
 - **Multi-Model LLM Fallback:** Primary synthesis via Gemini 2.5 Flash, with automatic rate-limit fallbacks to Claude 3.5 Haiku via OpenRouter.
 - **Live Ledger Dashboard:** A beautiful, responsive "Paper & Ink" editorial UI that tracks real-time network activity and citation earnings.
 
+## 🚀 Future Roadmap: Sustainable Tokenomics
+
+While this MVP relies on a subsidized treasury to bootstrap the network, the ultimate vision for CiteFlowAI involves a fully self-sustaining ecosystem using a **Pay-Per-Prompt** model:
+
+1. **User Funding:** The researcher connects their own EVM wallet (MetaMask, Rabby) or a Circle User-Controlled Wallet.
+2. **Micro-Escrow:** Every time the researcher hits "Ask", their wallet transfers a flat fee (e.g., `$0.50 USDC`) to the protocol's Treasury.
+3. **Autonomous Distribution:** The Treasury acts as a routing layer. When the AI agent synthesizes an answer using a creator's registered article, the Treasury distributes the citation price (e.g., `$0.30 USDC`) instantly to the creator.
+4. **Protocol Revenue:** The remaining balance (e.g., `$0.20 USDC`) is kept by the Treasury as protocol revenue to cover LLM inference costs and network maintenance.
+
 ## 🛠️ Primitives for Arc Builders (Arc OSS)
 
 If you are a builder looking to integrate autonomous micro-transactions into your AI workflows, CiteFlowAI exposes several highly reusable primitives:

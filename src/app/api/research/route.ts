@@ -5,7 +5,8 @@ import { z } from 'zod'
 
 const researchRequestSchema = z.object({
   query: z.string().min(5),
-  maxBudget: z.number().min(0).max(100)
+  maxBudget: z.number().min(0).max(100),
+  walletAddress: z.string().optional()
 })
 
 export async function POST(request: NextRequest) {
@@ -24,7 +25,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid input', details: parsed.error.issues }, { status: 400 })
     }
 
-    const { query, maxBudget } = parsed.data
+    const { query, maxBudget, walletAddress } = parsed.data
 
     // 1. Create a Research Session
     const { data: session, error: sessionError } = await supabase
@@ -56,6 +57,7 @@ export async function POST(request: NextRequest) {
             session.id, 
             query, 
             maxBudget,
+            walletAddress,
             (msg) => pushUpdate('progress', msg)
           )
 

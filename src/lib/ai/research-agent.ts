@@ -1,5 +1,6 @@
 import { createClient } from '@/utils/supabase/server'
 import { authorizePayment } from '../payments/treasury'
+import { executeGatewayTransfer } from '../payments/circle-api'
 import { z } from 'zod'
 
 const evaluationSchema = z.object({
@@ -56,7 +57,7 @@ async function callOpenRouterJSON(prompt: string, schema: any) {
     },
     body: JSON.stringify({
       model: 'anthropic/claude-3-haiku',
-      max_tokens: 1000,
+      max_tokens: 700,
       messages: [{ role: 'user', content: prompt }],
       response_format: { type: 'json_object' }
     })
@@ -83,13 +84,57 @@ async function callOpenRouterJSON(prompt: string, schema: any) {
   }
 }
 
+async function callAnthropicJSON(prompt: string, schema: any) {
+  const apiKey = process.env.ANTHROPIC_API_KEY
+  if (!apiKey) throw new Error('ANTHROPIC_API_KEY is not set')
+
+  const response = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': apiKey,
+      'anthropic-version': '2023-06-01'
+    },
+    body: JSON.stringify({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 700,
+      system: 'You must return a valid JSON object matching the requested schema. Output only the raw JSON without any markdown code blocks.',
+      messages: [{ role: 'user', content: prompt }]
+    })
+  })
+  
+  const data = await response.json()
+  
+  if (!response.ok) {
+    throw new Error(`Anthropic API Error: ${data.error?.message || 'Unknown'}`)
+  }
+
+  try {
+    const jsonString = data.content[0].text
+    let cleanString = jsonString.trim()
+    const firstBrace = cleanString.indexOf('{')
+    const lastBrace = cleanString.lastIndexOf('}')
+    if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+      cleanString = cleanString.substring(firstBrace, lastBrace + 1)
+    }
+    const parsed = JSON.parse(cleanString)
+    return schema.parse(parsed)
+  } catch (e) {
+    throw new Error('Failed to parse Anthropic output according to Zod schema')
+  }
+}
+
 async function callLLM(prompt: string, schema: any, onProgress?: (msg: string) => void) {
   try {
     return await callGeminiJSON(prompt, schema)
   } catch (e: any) {
-    console.warn(`Gemini API failed: ${e.message}. Falling back to OpenRouter (Anthropic)...`)
+    console.warn(`Gemini API failed: ${e.message}. Falling back...`)
+    if (process.env.ANTHROPIC_API_KEY) {
+      if (onProgress) onProgress('Gemini rate limited. Falling back to Claude 3 Haiku (via Anthropic API)...')
+      return await callAnthropicJSON(prompt, schema)
+    }
     if (process.env.OPENROUTER_API_KEY) {
-      if (onProgress) onProgress('Gemini rate limited. Falling back to Claude 3.5 Haiku (via OpenRouter)...')
+      if (onProgress) onProgress('Gemini rate limited. Falling back to Claude 3 Haiku (via OpenRouter)...')
       return await callOpenRouterJSON(prompt, schema)
     }
     throw e
@@ -99,9 +144,15 @@ async function callLLM(prompt: string, schema: any, onProgress?: (msg: string) =
 export async function runResearchAgent(
   sessionId: string, 
   query: string, 
-  maxBudget: number,
+  initialBudget: number,
+  walletAddress: string | undefined,
   onProgress?: (msg: string) => void
 ) {
+  let maxBudget = initialBudget;
+  let totalSpentOnSources = 0;
+  const platformFee = 0.20; // Ensure we keep $0.20 as platform revenue per prompt
+  
+  try {
   const supabase = await createClient()
 
   if (onProgress) onProgress('Initializing Agent Treasury and querying network...')
@@ -115,13 +166,15 @@ export async function runResearchAgent(
   if (sourcesError || !sources) throw new Error('Failed to fetch sources')
 
   const purchasedSources: any[] = []
+  const relevantSources: any[] = []
+  let allocatedBudget = 0;
   
   // 2. Evaluate Sources and Execute Payments
   if (onProgress) onProgress(`Found ${sources.length} registered sources. Beginning evaluation...`)
   for (const source of sources) {
     if (onProgress) onProgress(`Evaluating relevance of: ${source.title}`)
-    // Only search through sources we can afford
-    if (parseFloat(source.price_usdc) > maxBudget) continue
+    // Only evaluate sources we can afford within our remaining allocated budget
+    if (allocatedBudget + parseFloat(source.price_usdc) > initialBudget) continue
 
     const sourceContent = source.source_chunks.map((c: any) => c.chunk_text).join('\n').substring(0, 5000)
 
@@ -155,53 +208,34 @@ export async function runResearchAgent(
       reasoning: evaluation.reasoning
     })
     
-    if (onProgress) onProgress(`Evaluated ${source.title}. Score: ${evaluation.contributionScore.toFixed(2)}. ${evaluation.relevant && evaluation.contributionScore >= 0.5 ? 'Deemed highly relevant, preparing payment...' : 'Not relevant enough, skipping.'}`)
-
-    // If deemed highly relevant, purchase the licence
+    // If deemed highly relevant, add to context
     if (evaluation.relevant && evaluation.contributionScore >= 0.5) {
-      try {
-        const { payload } = await authorizePayment(sessionId, source.id, parseFloat(source.price_usdc), 'recipient_placeholder')
-        
-        // Call the dynamic x402 endpoint (in a real scenario, this would be absolute URL, simulating here with internal route for simplicity)
-        const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
-        const licenseRes = await fetch(`${baseUrl}/api/sources/${source.id}/license`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        })
-
-        if (licenseRes.ok) {
-          const licenseData = await licenseRes.json()
-          purchasedSources.push({
-            id: source.id,
-            title: source.title,
-            url: source.url,
-            content: sourceContent,
-            receipt: licenseData.receipt
-          })
-          maxBudget -= parseFloat(source.price_usdc)
-          if (onProgress) onProgress(`Payment Settled. Gateway Batch ID: ${licenseData.receipt.gatewaySettlementId}`)
-        }
-      } catch (e: any) {
-        console.error(`Failed to purchase source ${source.id}:`, e.message)
-        if (onProgress) onProgress(`Payment execution failed for ${source.title}. Source excluded from generation.`)
-        // Ensure we EXCLUDE sources whose payments fail per requirements
-      }
+      relevantSources.push({
+        id: source.id,
+        title: source.title,
+        url: source.url,
+        content: sourceContent,
+        price_usdc: source.price_usdc
+      })
+      allocatedBudget += parseFloat(source.price_usdc);
+      if (onProgress) onProgress(`Evaluated ${source.title}. Score: ${evaluation.contributionScore.toFixed(2)}. Deemed highly relevant, adding to context...`)
+    } else {
+      if (onProgress) onProgress(`Evaluated ${source.title}. Score: ${evaluation.contributionScore.toFixed(2)}. Not relevant enough, skipping.`)
     }
   }
 
   // 3. Generate Final Grounded Answer
-  if (onProgress) onProgress(`Synthesis phase. Generating factual answer grounded exclusively in ${purchasedSources.length} paid citations...`)
+  if (onProgress) onProgress(`Synthesis phase. Generating factual answer grounded exclusively in relevant citations...`)
   
   let finalPrompt = `
     Answer the following query using ONLY the provided sources. 
-    You must ground every factual claim in these explicitly purchased citations.
+    You must ground every factual claim in these explicitly provided citations.
     Query: "${query}"
     
-    Purchased Sources:
+    Available Sources:
   `
   
-  purchasedSources.forEach((s, index) => {
+  relevantSources.forEach((s, index) => {
     finalPrompt += `\n[Source ${index + 1}] (ID: ${s.id}, Title: ${s.title}):\n${s.content}\n`
   })
 
@@ -215,9 +249,77 @@ export async function runResearchAgent(
 
   const finalOutput = await callLLM(finalPrompt, finalOutputSchema, onProgress)
 
+  // 4. Execute Payments ONLY for Used Citations
+  if (onProgress) onProgress(`Executing payments for ${finalOutput.citationsUsed.length} citations explicitly used in the final answer...`)
+  
+  for (const usedId of finalOutput.citationsUsed) {
+    const source = relevantSources.find(s => s.id === usedId)
+    if (!source) continue
+
+    try {
+      const { payload } = await authorizePayment(sessionId, source.id, parseFloat(source.price_usdc), 'recipient_placeholder')
+      
+      const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+      const licenseRes = await fetch(`${baseUrl}/api/sources/${source.id}/license`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      })
+
+      if (licenseRes.ok) {
+        const licenseData = await licenseRes.json()
+        purchasedSources.push({
+          id: source.id,
+          title: source.title,
+          url: source.url,
+          content: source.content,
+          receipt: licenseData.receipt
+        })
+        const price = parseFloat(source.price_usdc);
+        maxBudget -= price;
+        totalSpentOnSources += price;
+        if (onProgress) onProgress(`Payment Settled. Gateway Batch ID: ${licenseData.receipt.gatewaySettlementId}`)
+      }
+    } catch (e: any) {
+      console.error(`Failed to purchase source ${source.id}:`, e.message)
+      if (onProgress) onProgress(`Payment execution failed for ${source.title}.`)
+    }
+  }
+
+  // --- Backend Refund Mechanism ---
+  if (walletAddress) {
+    const unspentBudget = initialBudget - totalSpentOnSources - platformFee;
+    if (unspentBudget >= 0.05) {
+      if (onProgress) onProgress(`Calculating budget... Unspent budget is $${unspentBudget.toFixed(2)}. Initiating refund...`)
+      try {
+        await executeGatewayTransfer(walletAddress, unspentBudget.toFixed(2));
+        if (onProgress) onProgress(`Refunded $${unspentBudget.toFixed(2)} to your wallet.`)
+      } catch (err: any) {
+        console.error("Refund failed:", err);
+        if (onProgress) onProgress(`Warning: Refund transfer failed (${err.message})`)
+      }
+    } else {
+      if (onProgress) onProgress(`Unspent budget is $${unspentBudget.toFixed(2)} (below $0.05 minimum threshold). Retained by Treasury.`)
+    }
+  }
+
   return {
     answer: finalOutput.answer,
     citationsUsed: purchasedSources.filter(s => finalOutput.citationsUsed.includes(s.id)),
     purchasedSources
+  }
+  
+  } catch (err: any) {
+    // --- Crash / Failure Full Refund Mechanism ---
+    if (walletAddress) {
+      if (onProgress) onProgress(`Research execution failed. Initiating full refund of $${initialBudget.toFixed(2)}...`)
+      try {
+        await executeGatewayTransfer(walletAddress, initialBudget.toFixed(2));
+        if (onProgress) onProgress(`Refunded $${initialBudget.toFixed(2)} to your wallet.`)
+      } catch (refundErr: any) {
+        console.error("Crash Refund failed:", refundErr);
+      }
+    }
+    throw err;
   }
 }

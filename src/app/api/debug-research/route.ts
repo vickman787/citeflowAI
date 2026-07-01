@@ -36,6 +36,7 @@ export async function POST(request: NextRequest) {
             session.id, 
             query, 
             maxBudget,
+            undefined,
             (msg) => pushUpdate('progress', msg)
           )
           pushUpdate('done', { result })

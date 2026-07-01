@@ -3,13 +3,16 @@
 import Link from "next/link";
 import Image from "next/image";
 import { useState, useEffect } from "react";
-import { Menu, X, LogIn, LogOut } from "lucide-react";
+import { Menu, X, LogIn, LogOut, Copy, Check } from "lucide-react";
 import { createClient } from "@/utils/supabase/client";
 import logoImage from "../../public/logo.jpg";
 
 export function Navigation() {
   const [isOpen, setIsOpen] = useState(false);
   const [user, setUser] = useState<any>(null);
+  const [walletAddress, setWalletAddress] = useState<string | null>(null);
+  const [walletBalance, setWalletBalance] = useState<string | null>(null);
+  const [isCopied, setIsCopied] = useState(false);
   const supabase = createClient();
 
   useEffect(() => {
@@ -21,12 +24,75 @@ export function Navigation() {
       setUser(session?.user ?? null);
     });
 
-    return () => subscription.unsubscribe();
+    const fetchBalance = async (token: string) => {
+      try {
+        const res = await fetch('/api/circle/wallet', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        })
+        if (res.ok) {
+          const data = await res.json()
+          if (data.balance) setWalletBalance(data.balance)
+        }
+      } catch(e) {
+        console.error(e)
+      }
+    }
+
+    const initWallet = () => {
+      setWalletAddress(localStorage.getItem('circle_wallet_address'));
+      const token = localStorage.getItem('circle_user_token');
+      if (token) fetchBalance(token); else setWalletBalance(null);
+    }
+
+    initWallet();
+    
+    const handleStorage = () => initWallet();
+    const handleCustom = () => initWallet();
+    
+    window.addEventListener('storage', handleStorage);
+    window.addEventListener('wallet_changed', handleCustom);
+
+    return () => {
+      subscription.unsubscribe();
+      window.removeEventListener('storage', handleStorage);
+      window.removeEventListener('wallet_changed', handleCustom);
+    };
   }, [supabase]);
 
   const handleLogout = async () => {
+    handleWalletLogout();
     await supabase.auth.signOut();
     window.location.href = "/";
+  };
+
+  const handleWalletLogout = () => {
+    setWalletAddress(null);
+    setWalletBalance(null);
+    localStorage.removeItem('circle_wallet_address');
+    localStorage.removeItem('circle_user_token');
+    localStorage.removeItem('circle_encryption_key');
+    window.dispatchEvent(new Event('wallet_changed'));
+  };
+
+  const handleCopy = () => {
+    if (walletAddress) {
+      if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(walletAddress)
+      } else {
+        const textArea = document.createElement("textarea")
+        textArea.value = walletAddress
+        document.body.appendChild(textArea)
+        textArea.select()
+        try {
+          document.execCommand('copy')
+        } catch (err) {
+          console.error('Copy failed', err)
+        }
+        document.body.removeChild(textArea)
+      }
+      setIsCopied(true)
+      setTimeout(() => setIsCopied(false), 2000)
+    }
   };
 
   const navLinks = [
@@ -37,10 +103,10 @@ export function Navigation() {
 
   return (
     <nav className="w-full bg-paper border-b border-[var(--color-border-subtle)] sticky top-0 z-50">
-      <div className="content-container h-16 flex items-center justify-between">
+      <div className="content-container h-16 flex items-center justify-between gap-4 xl:gap-8">
         
         {/* Logo and Wordmark */}
-        <Link href="/" className="flex items-center gap-3">
+        <Link href="/" className="flex items-center gap-3 flex-shrink-0">
           <Image 
             src={logoImage} 
             alt="CiteFlowAI Logo" 
@@ -54,7 +120,7 @@ export function Navigation() {
         </Link>
         
         {/* Desktop Nav */}
-        <div className="hidden md:flex items-center gap-8">
+        <div className="hidden md:flex items-center gap-4 lg:gap-6 flex-shrink-0">
           {navLinks.map((link) => (
             <Link 
               key={link.href}
@@ -83,6 +149,40 @@ export function Navigation() {
               <LogIn size={16} />
               Login
             </Link>
+          )}
+
+          {walletAddress && (
+            <div className="hidden lg:flex items-center gap-3 text-sm text-[var(--color-olive)] font-mono bg-white px-3 py-1.5 border border-[var(--color-border-subtle)] rounded shadow-sm whitespace-nowrap flex-shrink-0">
+              <div className="flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-[var(--color-signal-green)] animate-pulse"></span>
+                {walletAddress.substring(0, 6)}...{walletAddress.substring(walletAddress.length - 4)}
+              </div>
+              {walletBalance && (
+                <>
+                  <div className="w-px h-4 bg-[var(--color-border-subtle)]"></div>
+                  <div className="font-bold text-[var(--color-ink)]">${Number(walletBalance).toFixed(2)} USDC</div>
+                </>
+              )}
+              <div className="w-px h-4 bg-[var(--color-border-subtle)]"></div>
+              <div className="flex items-center gap-1">
+                <button 
+                  type="button"
+                  onClick={handleCopy}
+                  className="p-1 hover:text-[var(--color-ink)] transition-colors"
+                  title="Copy Address"
+                >
+                  {isCopied ? <Check size={14} className="text-[var(--color-signal-green)]" /> : <Copy size={14} />}
+                </button>
+                <button 
+                  type="button"
+                  onClick={handleWalletLogout}
+                  className="p-1 hover:text-[var(--color-rust)] transition-colors"
+                  title="Logout Wallet"
+                >
+                  <LogOut size={14} />
+                </button>
+              </div>
+            </div>
           )}
         </div>
 

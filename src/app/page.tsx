@@ -30,6 +30,11 @@ export default async function LandingPage() {
     .order('created_at', { ascending: false })
     .limit(3)
 
+  const { count: totalPaidCitations } = await supabase
+    .from('payment_authorizations')
+    .select('*', { count: 'exact', head: true })
+    .eq('status', 'settled')
+
   const hasLiveActivity = recentPayments && recentPayments.length > 0
 
   return (
@@ -65,7 +70,7 @@ export default async function LandingPage() {
         <section className="w-full lg:max-w-[480px] lg:ml-auto">
           <div className="card-panel shadow-sm overflow-hidden flex flex-col">
             <div className="bg-[var(--color-ink)] text-[var(--color-paper)] p-4 flex items-center justify-between border-b border-[var(--color-border-subtle)]">
-              <span className="font-sans font-medium text-sm">Live Citations</span>
+              <span className="font-sans font-medium text-sm">Live Citations {totalPaidCitations ? `(${totalPaidCitations})` : ''}</span>
               <span className="font-mono text-xs text-[var(--color-signal-green)] bg-[var(--color-signal-green)]/10 px-2 py-1 rounded">Arc Testnet</span>
             </div>
             <div className="flex flex-col divide-y divide-[var(--color-border-subtle)] bg-white">
