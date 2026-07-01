@@ -47,7 +47,7 @@ export default function RegisterArticlePage() {
         <div className="mb-12 text-center">
           <h1 className="text-4xl font-serif font-bold mb-4 text-[var(--color-ink)]">Register Article</h1>
           <p className="text-lg text-[var(--color-soft-ink)]">
-            Submit your work to the CiteFlow network. Set a citation-licence price in USDC.
+            Submit your work to the CiteFlowAI network. Set a citation-licence price in USDC.
           </p>
         </div>
 

@@ -21,7 +21,7 @@ const mono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "CiteFlow | Arc Testnet",
+  title: "CiteFlowAI | Arc Testnet",
   description: "Editorial research terminal powered by Arc Testnet nanopayments.",
 };
 

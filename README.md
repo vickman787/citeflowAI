@@ -1,13 +1,13 @@
-# CiteFlow 🖋️⚡️
+# CiteFlowAI 🖋️⚡️
 
 > **The Decentralized Research Terminal.**
 > Ask a question. Get a grounded answer. Pay the creator instantly.
 
-CiteFlow is a Web3-native AI research agent built for the Arc Testnet. It solves a critical problem in the AI era: **content creators are rarely compensated when autonomous agents scrape and synthesize their work.** 
+CiteFlowAI is a Web3-native AI research agent built for the Arc Testnet. It solves a critical problem in the AI era: **content creators are rarely compensated when autonomous agents scrape and synthesize their work.** 
 
-With CiteFlow, creators register their articles on-chain with a set licensing price. When the autonomous AI agent uses their work to synthesize an answer to a user's query, it automatically executes an instant USDC nanopayment to the creator's wallet.
+With CiteFlowAI, creators register their articles on-chain with a set licensing price. When the autonomous AI agent uses their work to synthesize an answer to a user's query, it automatically executes an instant USDC nanopayment to the creator's wallet.
 
-![CiteFlow Tech Stack](https://img.shields.io/badge/Next.js-15-black?style=flat&logo=next.js)
+![CiteFlowAI Tech Stack](https://img.shields.io/badge/Next.js-15-black?style=flat&logo=next.js)
 ![Supabase](https://img.shields.io/badge/Supabase-Database-3ECF8E?style=flat&logo=supabase)
 ![Circle](https://img.shields.io/badge/Circle-Web3_Services-2B88D8?style=flat)
 ![Arc Testnet](https://img.shields.io/badge/Network-Arc_Testnet-success?style=flat)
@@ -24,7 +24,7 @@ With CiteFlow, creators register their articles on-chain with a set licensing pr
 
 ## 🛠️ Primitives for Arc Builders (Arc OSS)
 
-If you are a builder looking to integrate autonomous micro-transactions into your AI workflows, CiteFlow exposes several highly reusable primitives:
+If you are a builder looking to integrate autonomous micro-transactions into your AI workflows, CiteFlowAI exposes several highly reusable primitives:
 
 1. **`research-agent.ts`:** A complete LLM orchestration loop that evaluates content relevance, purchases licenses dynamically via internal API routes, and synthesizes grounded answers using *only* paid citations.
 2. **`treasury.ts`:** A secure backend module linking user sessions to Circle's Developer-Controlled Wallets.

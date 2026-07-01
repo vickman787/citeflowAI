@@ -42,7 +42,7 @@ export default async function LandingPage() {
             Sources deserve<br />a share.
           </h1>
           <p className="text-lg md:text-xl font-sans text-[var(--color-soft-ink)] mb-10 leading-relaxed">
-            CiteFlow is an editorial research terminal powered by autonomous AI. When the agent uses your registered work to synthesize an answer, you receive instant nanopayments on the Arc Testnet.
+            CiteFlowAI is an editorial research terminal powered by autonomous AI. When the agent uses your registered work to synthesize an answer, you receive instant nanopayments on the Arc Testnet.
           </p>
           
           <div className="flex flex-col sm:flex-row gap-4">

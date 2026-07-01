@@ -43,14 +43,14 @@ export function Navigation() {
         <Link href="/" className="flex items-center gap-3">
           <Image 
             src={logoImage} 
-            alt="CiteFlow Logo" 
+            alt="CiteFlowAI Logo" 
             width={32} 
             height={32} 
             className="rounded" 
             style={{ objectFit: 'contain' }}
             priority
           />
-          <span className="font-sans font-bold text-xl tracking-tight text-ink">CiteFlow</span>
+          <span className="font-sans font-bold text-xl tracking-tight text-ink">CiteFlowAI</span>
         </Link>
         
         {/* Desktop Nav */}

@@ -9,9 +9,9 @@ export default function LoginPage() {
       <div className="w-full max-w-md card-panel p-8 sm:p-10">
         <div className="flex flex-col items-center mb-8">
           <Link href="/" className="mb-4">
-            <Image src={logoImage} alt="CiteFlow Logo" width={48} height={48} className="rounded" />
+            <Image src={logoImage} alt="CiteFlowAI Logo" width={48} height={48} className="rounded" />
           </Link>
-          <h1 className="text-2xl font-serif font-bold text-[var(--color-ink)]">CiteFlow</h1>
+          <h1 className="text-2xl font-serif font-bold text-[var(--color-ink)]">CiteFlowAI</h1>
           <p className="text-[var(--color-soft-ink)] text-sm mt-2 font-mono uppercase tracking-widest">Authentication</p>
         </div>
         <form className="flex flex-col space-y-6">
