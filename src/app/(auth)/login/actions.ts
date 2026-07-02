@@ -18,7 +18,7 @@ export async function login(formData: FormData) {
   if (error) {
     const errMessage = error.message && error.message !== '{}' 
       ? error.message 
-      : (error.error_description || "Invalid login credentials. Please try again.");
+      : ((error as any).error_description || "Invalid login credentials. Please try again.");
     redirect(`/login?error=${encodeURIComponent(errMessage)}`)
   }
 
@@ -40,7 +40,7 @@ export async function signup(formData: FormData) {
   if (error) {
     const errMessage = error.message && error.message !== '{}' 
       ? error.message 
-      : (error.error_description || "An error occurred during sign up. Please try again or use a different email.");
+      : ((error as any).error_description || "An error occurred during sign up. Please try again or use a different email.");
     redirect(`/login?error=${encodeURIComponent(errMessage)}`)
   }
 
