@@ -7,19 +7,20 @@ import { Menu, X, LogIn, LogOut, Copy, Check, Droplet } from "lucide-react";
 import { createClient } from "@/utils/supabase/client";
 import logoImage from "../../public/logo.jpg";
 
-export function Navigation() {
+export function Navigation({ initialUser }: { initialUser?: any }) {
   const [isOpen, setIsOpen] = useState(false);
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<any>(initialUser || null);
   const [walletAddress, setWalletAddress] = useState<string | null>(null);
   const [walletBalance, setWalletBalance] = useState<string | null>(null);
   const [isCopied, setIsCopied] = useState(false);
   const supabase = createClient();
 
+  // Sync prop changes from layout
   useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => {
-      setUser(data.user);
-    });
+    setUser(initialUser || null);
+  }, [initialUser]);
 
+  useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       setUser(session?.user ?? null);
     });

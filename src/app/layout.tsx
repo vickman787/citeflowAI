@@ -25,11 +25,16 @@ export const metadata: Metadata = {
   description: "Editorial research terminal powered by Arc Testnet nanopayments.",
 };
 
-export default function RootLayout({
+import { createClient } from "@/utils/supabase/server";
+
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const supabase = await createClient();
+  const { data } = await supabase.auth.getUser();
+
   return (
     <html
       lang="en"
@@ -71,7 +76,7 @@ export default function RootLayout({
                 <span className="text-[var(--color-paper)]">LIVE ON ARC TESTNET</span>
               </div>
               
-              <Navigation />
+              <Navigation initialUser={data?.user} />
 
               <div className="flex-1 flex flex-col">
                 {children}
