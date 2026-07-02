@@ -96,9 +96,10 @@ export function Navigation() {
   };
 
   const navLinks = [
-    { href: "/research", label: "Workspace" },
+    { href: "/research", label: "Agent" },
     { href: "/dashboard", label: "Dashboard" },
     { href: "/register-article", label: "Register Work" },
+    { href: "/docs", label: "Docs" },
   ];
 
   return (
