@@ -96,7 +96,7 @@ async function callAnthropicJSON(prompt: string, schema: any) {
       'anthropic-version': '2023-06-01'
     },
     body: JSON.stringify({
-      model: 'claude-3-5-haiku-20241022',
+      model: 'claude-haiku-4-5-20251001',
       max_tokens: 700,
       system: 'You must return a valid JSON object matching the requested schema. Output only the raw JSON without any markdown code blocks.',
       messages: [{ role: 'user', content: prompt }]
@@ -130,7 +130,7 @@ async function callLLM(prompt: string, schema: any, onProgress?: (msg: string) =
   } catch (e: any) {
     console.warn(`Gemini API failed: ${e.message}. Falling back...`)
     if (process.env.ANTHROPIC_API_KEY) {
-      if (onProgress) onProgress('Gemini rate limited. Falling back to Claude 3.5 Haiku (via Anthropic API)...')
+      if (onProgress) onProgress('Gemini rate limited. Falling back to Claude Haiku 4.5 (via Anthropic API)...')
       return await callAnthropicJSON(prompt, schema)
     }
     if (process.env.OPENROUTER_API_KEY) {
