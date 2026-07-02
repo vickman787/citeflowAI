@@ -67,7 +67,7 @@ async function deleteSource(formData: FormData) {
 
   // Delete associated vector chunks first
   await supabase
-    .from('document_chunks')
+    .from('source_chunks')
     .delete()
     .eq('source_id', sourceId)
 

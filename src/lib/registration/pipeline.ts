@@ -110,24 +110,63 @@ export async function registerArticle(targetUrl: string, creatorId: string, pric
     const contentHash = crypto.createHash('sha256').update(readableText).digest('hex')
 
     // 5. Database Insertion
-    const { data, error } = await supabase
+    const { data: existing } = await supabase
       .from('sources')
-      .insert({
-        url: normalizedUrl,
-        title,
-        content_hash: contentHash,
-        price_usdc: price,
-        creator_id: creatorId,
-        status: 'extracted'
-      })
-      .select('id')
+      .select('id, creator_id, status')
+      .eq('url', normalizedUrl)
       .single()
 
-    if (error) {
-      if (error.code === '23505') {
-        throw new Error('Article already registered (Duplicate)')
-      }
-      throw error
+    let sourceId: string;
+
+    if (existing) {
+       if (existing.creator_id !== creatorId) {
+          throw new Error('This article is already registered by another creator.')
+       }
+       if (existing.status !== 'deleted') {
+          throw new Error('Article already registered (Duplicate)')
+       }
+
+       // Reactivate it!
+       const { data: updated, error } = await supabase
+         .from('sources')
+         .update({
+           status: 'extracted',
+           title,
+           content_hash: contentHash,
+           price_usdc: price
+         })
+         .eq('id', existing.id)
+         .select('id')
+         .single()
+
+       if (error) throw error
+       sourceId = updated.id
+       
+       // Wipe old chunks just in case they survived
+       await supabase.from('source_chunks').delete().eq('source_id', sourceId)
+       
+    } else {
+       // Insert new
+       const { data: inserted, error } = await supabase
+         .from('sources')
+         .insert({
+           url: normalizedUrl,
+           title,
+           content_hash: contentHash,
+           price_usdc: price,
+           creator_id: creatorId,
+           status: 'extracted'
+         })
+         .select('id')
+         .single()
+
+       if (error) {
+         if (error.code === '23505') {
+           throw new Error('Article already registered (Duplicate)')
+         }
+         throw error
+       }
+       sourceId = inserted.id
     }
 
     // 6. Chunking (naive for now)
@@ -136,14 +175,14 @@ export async function registerArticle(targetUrl: string, creatorId: string, pric
     // Insert chunks without embeddings for now
     if (chunks.length > 0) {
       const chunkInserts = chunks.map(chunk => ({
-        source_id: data.id,
+        source_id: sourceId,
         chunk_text: chunk
       }))
       
       await supabase.from('source_chunks').insert(chunkInserts)
     }
 
-    return { success: true, sourceId: data.id }
+    return { success: true, sourceId }
 
   } catch (error: any) {
     console.error('Registration error:', error.message)
