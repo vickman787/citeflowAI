@@ -3,7 +3,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { useState, useEffect } from "react";
-import { Menu, X, LogIn, LogOut, Copy, Check } from "lucide-react";
+import { Menu, X, LogIn, LogOut, Copy, Check, Droplet } from "lucide-react";
 import { createClient } from "@/utils/supabase/client";
 import logoImage from "../../public/logo.jpg";
 
@@ -173,6 +173,15 @@ export function Navigation() {
                 >
                   {isCopied ? <Check size={14} className="text-[var(--color-signal-green)]" /> : <Copy size={14} />}
                 </button>
+                <a 
+                  href="https://faucet.circle.com/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="p-1 hover:text-blue-500 transition-colors"
+                  title="Get Testnet USDC from Circle Faucet"
+                >
+                  <Droplet size={14} />
+                </a>
                 <button 
                   type="button"
                   onClick={handleWalletLogout}
@@ -256,6 +265,15 @@ export function Navigation() {
                     >
                       {isCopied ? <Check size={16} className="text-[var(--color-signal-green)]" /> : <Copy size={16} />}
                     </button>
+                    <a 
+                      href="https://faucet.circle.com/"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="p-2 hover:bg-[var(--color-paper)] text-blue-500 rounded transition-colors"
+                      title="Get Testnet USDC from Circle Faucet"
+                    >
+                      <Droplet size={16} />
+                    </a>
                     <button 
                       type="button"
                       onClick={() => {
