@@ -2,6 +2,7 @@ import { createClient } from '@/utils/supabase/server'
 import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
 import CopyButton from '@/components/CopyButton'
+import { Trash } from 'lucide-react'
 
 async function updateWalletAddress(formData: FormData) {
   'use server'
@@ -41,6 +42,39 @@ async function updateSourcePrice(formData: FormData) {
   await supabase
     .from('sources')
     .update({ price_usdc: parseFloat(newPrice) })
+    .eq('id', sourceId)
+    .eq('creator_id', creator.id)
+
+  revalidatePath('/dashboard')
+}
+
+async function deleteSource(formData: FormData) {
+  'use server'
+  const sourceId = formData.get('source_id') as string
+  if (!sourceId) return
+
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return
+
+  const { data: creator } = await supabase
+    .from('creator_profiles')
+    .select('id')
+    .eq('user_id', user.id)
+    .single()
+  
+  if (!creator) return
+
+  // Delete associated vector chunks first
+  await supabase
+    .from('document_chunks')
+    .delete()
+    .eq('source_id', sourceId)
+
+  // Delete the source itself
+  await supabase
+    .from('sources')
+    .delete()
     .eq('id', sourceId)
     .eq('creator_id', creator.id)
 
@@ -228,6 +262,12 @@ export default async function DashboardPage() {
                         </div>
                         <button type="submit" className="text-[10px] uppercase tracking-wider font-bold bg-[var(--color-ink)] text-[var(--color-paper)] px-2 py-1 rounded hover:opacity-80 transition-opacity">
                           Update
+                        </button>
+                      </form>
+                      <form action={deleteSource} className="mt-3">
+                        <input type="hidden" name="source_id" value={s.id} />
+                        <button type="submit" className="text-[10px] uppercase tracking-wider font-bold text-[var(--color-rust)] hover:bg-[var(--color-rust)]/10 px-2 py-1 rounded transition-colors flex items-center gap-1 w-fit">
+                          <Trash size={12} /> Delete
                         </button>
                       </form>
                     </td>
