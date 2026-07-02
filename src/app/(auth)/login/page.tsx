@@ -3,7 +3,9 @@ import Image from 'next/image'
 import Link from 'next/link'
 import logoImage from '../../../../public/logo.jpg'
 
-export default function LoginPage() {
+export default async function LoginPage({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
+  const { error } = await searchParams;
+
   return (
     <div className="flex flex-1 items-center justify-center p-4 content-container">
       <div className="w-full max-w-md card-panel p-8 sm:p-10">
@@ -14,6 +16,11 @@ export default function LoginPage() {
           <h1 className="text-2xl font-serif font-bold text-[var(--color-ink)]">CiteFlowAI</h1>
           <p className="text-[var(--color-soft-ink)] text-sm mt-2 font-mono uppercase tracking-widest">Authentication</p>
         </div>
+        {error && (
+          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-md">
+            <p className="text-sm text-red-600 font-medium text-center">{error}</p>
+          </div>
+        )}
         <form className="flex flex-col space-y-6">
           <div>
             <label htmlFor="email" className="label-text">Email</label>
