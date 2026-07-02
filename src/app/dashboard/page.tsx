@@ -71,10 +71,11 @@ async function deleteSource(formData: FormData) {
     .delete()
     .eq('source_id', sourceId)
 
-  // Delete the source itself
+  // Update the source status to deleted instead of actually deleting the row
+  // This prevents foreign key constraint errors if the source has past payment authorizations
   await supabase
     .from('sources')
-    .delete()
+    .update({ status: 'deleted' })
     .eq('id', sourceId)
     .eq('creator_id', creator.id)
 
@@ -115,6 +116,7 @@ export default async function DashboardPage() {
         payment_authorizations(amount_usdc, status)
       `)
       .eq('creator_id', creator.id)
+      .neq('status', 'deleted')
       
     if (data) {
       sources = data
