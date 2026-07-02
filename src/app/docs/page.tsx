@@ -8,9 +8,20 @@ export default function DocsPage() {
         <h1 className="text-4xl md:text-5xl font-serif font-bold mb-4 text-[var(--color-ink)]">
           Documentation
         </h1>
-        <p className="text-lg text-[var(--color-soft-ink)]">
+        <p className="text-lg text-[var(--color-soft-ink)] mb-8">
           Everything you need to know about using CiteFlowAI, whether you are researching topics or registering your own intellectual property.
         </p>
+
+        {/* Video Guide */}
+        <div className="relative w-full aspect-video rounded overflow-hidden shadow-lg border border-[var(--color-border-subtle)]">
+          <iframe
+            src="https://www.youtube.com/embed/2Ld-0Sq2dxE"
+            title="CiteFlowAI Video Guide"
+            className="absolute top-0 left-0 w-full h-full"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+            allowFullScreen
+          ></iframe>
+        </div>
       </div>
 
       <div className="space-y-16">
