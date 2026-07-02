@@ -1,6 +1,7 @@
 import { createClient } from '@/utils/supabase/server'
 import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
+import CopyButton from '@/components/CopyButton'
 
 async function updateWalletAddress(formData: FormData) {
   'use server'
@@ -200,8 +201,11 @@ export default async function DashboardPage() {
                       <div className="font-medium text-[var(--color-ink)] truncate max-w-[200px] sm:max-w-[300px]" title={s.title}>
                         {s.title}
                       </div>
-                      <div className="text-xs text-[var(--color-olive)] truncate max-w-[200px] sm:max-w-[300px]" title={s.url}>
-                        {s.url}
+                      <div className="flex items-center gap-2 mt-1">
+                        <div className="text-xs text-[var(--color-olive)] truncate max-w-[180px] sm:max-w-[280px]" title={s.url}>
+                          {s.url}
+                        </div>
+                        <CopyButton text={s.url} title="Copy Article URL" />
                       </div>
                     </td>
                     <td data-label="Price" className="align-top">
