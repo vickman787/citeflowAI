@@ -116,21 +116,21 @@ export default async function DashboardPage() {
         payment_authorizations(amount_usdc, status)
       `)
       .eq('creator_id', creator.id)
-      .neq('status', 'deleted')
       
     if (data) {
-      sources = data
-      sources.forEach(s => {
-        // Filter for settled payments
+      // Calculate earnings across ALL sources (including deleted ones)
+      data.forEach(s => {
         const settledAuths = s.payment_authorizations?.filter((pa: any) => pa.status === 'settled') || []
-        
-        // Attach count to the object for the UI to use
-        s.payment_count = settledAuths.length
-        
-        // Sum historical earnings with 20% fee applied
         settledAuths.forEach((pa: any) => {
           totalEarnings += parseFloat(pa.amount_usdc) * 0.80
         })
+      })
+
+      // Only show active sources in the table
+      sources = data.filter(s => s.status !== 'deleted')
+      sources.forEach(s => {
+        const settledAuths = s.payment_authorizations?.filter((pa: any) => pa.status === 'settled') || []
+        s.payment_count = settledAuths.length
       })
     }
   }
