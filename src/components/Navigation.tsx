@@ -231,6 +231,47 @@ export function Navigation() {
               Login
             </Link>
           )}
+          
+          {walletAddress && (
+            <>
+              <div className="h-px w-full bg-[var(--color-border-subtle)] my-2"></div>
+              <div className="flex flex-col gap-3 py-2">
+                <div className="text-xs uppercase tracking-wider font-bold text-[var(--color-soft-ink)]">Connected Wallet</div>
+                <div className="flex items-center justify-between bg-white px-3 py-2 border border-[var(--color-border-subtle)] rounded shadow-sm">
+                  <div className="flex flex-col gap-1">
+                    <div className="flex items-center gap-2 font-mono text-sm text-[var(--color-olive)]">
+                      <span className="w-2 h-2 rounded-full bg-[var(--color-signal-green)] animate-pulse"></span>
+                      {walletAddress.substring(0, 6)}...{walletAddress.substring(walletAddress.length - 4)}
+                    </div>
+                    {walletBalance && (
+                      <div className="font-bold text-[var(--color-ink)]">${Number(walletBalance).toFixed(2)} USDC</div>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2 border-l border-[var(--color-border-subtle)] pl-3">
+                    <button 
+                      type="button"
+                      onClick={handleCopy}
+                      className="p-2 hover:bg-[var(--color-paper)] rounded transition-colors"
+                      title="Copy Address"
+                    >
+                      {isCopied ? <Check size={16} className="text-[var(--color-signal-green)]" /> : <Copy size={16} />}
+                    </button>
+                    <button 
+                      type="button"
+                      onClick={() => {
+                        handleWalletLogout();
+                        setIsOpen(false);
+                      }}
+                      className="p-2 hover:bg-[var(--color-paper)] text-[var(--color-rust)] rounded transition-colors"
+                      title="Logout Wallet"
+                    >
+                      <LogOut size={16} />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </>
+          )}
         </div>
       )}
     </nav>
