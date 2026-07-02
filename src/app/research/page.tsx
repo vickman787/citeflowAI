@@ -102,11 +102,16 @@ export default function ResearchWorkspacePage() {
 
       if (!paymentRes.ok) {
         const errText = await paymentRes.text()
+        let parsedErrMsg = errText;
         try {
-          throw new Error(JSON.parse(errText).error || 'Payment challenge failed')
-        } catch {
-          throw new Error(errText || 'Payment challenge failed')
+          parsedErrMsg = JSON.parse(errText).error || errText;
+        } catch {}
+        
+        if (parsedErrMsg.includes("Wallet not found")) {
+          handleLogout();
+          throw new Error("Your wallet session expired or was reset. Please click 'Connect Wallet' to reconnect.");
         }
+        throw new Error(parsedErrMsg || 'Payment challenge failed');
       }
 
       const { challengeId } = await paymentRes.json()
@@ -135,12 +140,11 @@ export default function ResearchWorkspacePage() {
 
       if (!res.ok) {
         const errText = await res.text()
+        let parsedErrMsg = errText;
         try {
-          const errJson = JSON.parse(errText)
-          throw new Error(errJson.error || errText)
-        } catch {
-          throw new Error(errText || 'API Request Failed')
-        }
+          parsedErrMsg = JSON.parse(errText).error || errText;
+        } catch {}
+        throw new Error(parsedErrMsg || 'API Request Failed');
       }
 
       if (!res.body) throw new Error('No response body')
