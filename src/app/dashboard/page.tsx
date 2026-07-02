@@ -220,9 +220,7 @@ export default async function DashboardPage() {
                             />
                             <span className="font-mono text-sm text-[var(--color-ink)] font-bold">USDC</span>
                           </div>
-                          <div className="text-xs text-[var(--color-olive)] mt-1 ml-4">
-                            Net: {(parseFloat(s.price_usdc) * 0.80).toFixed(2)}
-                          </div>
+
                         </div>
                         <button type="submit" className="text-[10px] uppercase tracking-wider font-bold bg-[var(--color-ink)] text-[var(--color-paper)] px-2 py-1 rounded hover:opacity-80 transition-opacity">
                           Update
