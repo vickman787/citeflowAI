@@ -122,7 +122,7 @@ export function Navigation({ initialUser }: { initialUser?: any }) {
         </Link>
         
         {/* Desktop Nav */}
-        <div className="hidden md:flex items-center gap-4 lg:gap-6 flex-shrink-0 mr-4 lg:mr-8">
+        <div className="hidden md:flex items-center gap-4 lg:gap-6 flex-shrink-0">
           {navLinks.map((link) => (
             <Link 
               key={link.href}
