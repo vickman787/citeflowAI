@@ -90,23 +90,43 @@ export async function registerArticle(targetUrl: string, creatorId: string, pric
     // 1. Normalize URL
     const normalizedUrl = new URL(targetUrl).toString()
 
-    // 2. Safe fetch (SSRF, redirect limit)
-    const response = await safeFetch(normalizedUrl)
+    // 2. Try standard fetch first (with SSRF protection)
+    let response = await safeFetch(normalizedUrl).catch(() => null)
+    let title = 'Untitled'
+    let readableText = ''
 
-    if (!response.ok) {
-      throw new Error(`Failed to fetch article: ${response.statusText}`)
+    if (!response || !response.ok) {
+      // 3. Fallback to Jina AI Reader API (bypasses Cloudflare & anti-bot)
+      const jinaResponse = await fetch(`https://r.jina.ai/${normalizedUrl}`)
+      if (!jinaResponse.ok) {
+        throw new Error(`Failed to fetch article (even with Jina AI fallback): ${jinaResponse.statusText}`)
+      }
+      readableText = await jinaResponse.text()
+      
+      // Jina puts the title in the x-title header, but sometimes it's missing
+      title = jinaResponse.headers.get('x-title') || jinaResponse.headers.get('X-Title') || 'Untitled'
+      
+      if (title === 'Untitled') {
+        const lines = readableText.split('\n')
+        const firstLine = lines[0]?.trim() || ''
+        if (firstLine.startsWith('Title:')) {
+          title = firstLine.replace('Title:', '').trim()
+        } else if (firstLine.startsWith('#')) {
+          title = firstLine.replace(/^#+\s*/, '').trim()
+        }
+      }
+    } else {
+      // Standard HTML Extraction
+      const contentType = response.headers.get('content-type') || ''
+      if (!contentType.includes('text/html')) {
+        throw new Error('Invalid content type. Expected text/html.')
+      }
+      const html = await response.text()
+      const extracted = extractMetadata(html)
+      title = extracted.title
+      readableText = extracted.readableText
     }
 
-    // 3. Content type validation
-    const contentType = response.headers.get('content-type') || ''
-    if (!contentType.includes('text/html')) {
-      throw new Error('Invalid content type. Expected text/html.')
-    }
-
-    const html = await response.text()
-
-    // 4. Extraction
-    const { title, readableText } = extractMetadata(html)
     const contentHash = crypto.createHash('sha256').update(readableText).digest('hex')
 
     // 5. Database Insertion
