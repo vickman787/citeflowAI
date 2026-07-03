@@ -123,7 +123,7 @@ h1, h2, h3, h4, h5, h6 {
   /* Layout Utilities */
   .content-container {
     width: 100%;
-    max-width: 1280px;
+    max-width: 1600px;
     margin: 0 auto;
     padding-left: 1.5rem;
     padding-right: 1.5rem;
