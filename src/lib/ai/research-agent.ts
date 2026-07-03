@@ -1,4 +1,4 @@
-import { createClient } from '@/utils/supabase/server'
+import { createAdminClient } from '@/utils/supabase/admin'
 import { authorizePayment } from '../payments/treasury'
 import { executeGatewayTransfer } from '../payments/circle-api'
 import { z } from 'zod'
@@ -153,7 +153,7 @@ export async function runResearchAgent(
   const platformFee = 0.20; // Ensure we keep $0.20 as platform revenue per prompt
   
   try {
-  const supabase = await createClient()
+  const supabase = createAdminClient()
 
   if (onProgress) onProgress('Initializing Agent Treasury and querying network...')
 

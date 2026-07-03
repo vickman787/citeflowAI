@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { runResearchAgent } from '@/lib/ai/research-agent'
-import { createClient } from '@/utils/supabase/server'
+import { createAdminClient } from '@/utils/supabase/admin'
 import { z } from 'zod'
 
 const researchRequestSchema = z.object({
@@ -11,12 +11,8 @@ const researchRequestSchema = z.object({
 
 export async function POST(request: NextRequest) {
   try {
-    const supabase = await createClient()
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-
-    if (authError || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
+    const supabase = createAdminClient()
+    const { data: { user } } = await supabase.auth.getUser()
 
     const body = await request.json()
     const parsed = researchRequestSchema.safeParse(body)
@@ -31,7 +27,7 @@ export async function POST(request: NextRequest) {
     const { data: session, error: sessionError } = await supabase
       .from('research_sessions')
       .insert({
-        user_id: user.id,
+        user_id: user?.id || null,
         query,
         budget_usdc: maxBudget,
         status: 'active'
