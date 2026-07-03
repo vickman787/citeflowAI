@@ -39,7 +39,7 @@ export default async function LandingPage() {
 
   return (
     <div className="flex-1 flex flex-col pt-12 md:pt-24 section-spacing content-container">
-      <div className="grid lg:grid-cols-2 gap-16 lg:gap-8 items-center">
+      <div className="flex flex-col lg:flex-row justify-between items-center lg:items-start gap-16 lg:gap-8 w-full">
         
         {/* Left: Editorial Copy */}
         <section className="flex flex-col max-w-[620px]">
