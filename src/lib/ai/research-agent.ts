@@ -288,7 +288,10 @@ export async function runResearchAgent(
 
   // --- Backend Refund Mechanism ---
   if (walletAddress) {
-    const unspentBudget = initialBudget - totalSpentOnSources - platformFee;
+    // Waive the platform fee if no sources were useful (100% full refund)
+    const actualPlatformFee = totalSpentOnSources > 0 ? platformFee : 0;
+    const unspentBudget = initialBudget - totalSpentOnSources - actualPlatformFee;
+    
     if (unspentBudget >= 0.05) {
       if (onProgress) onProgress(`Calculating budget... Unspent budget is $${unspentBudget.toFixed(2)}. Initiating refund...`)
       try {
