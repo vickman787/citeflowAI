@@ -98,8 +98,8 @@ export function Navigation({ initialUser }: { initialUser?: any }) {
 
   const navLinks = [
     { href: "/research", label: "Agent" },
-    { href: "/dashboard", label: "Dashboard" },
     { href: "/register-article", label: "Register Work" },
+    { href: "/dashboard", label: "Dashboard" },
     { href: "/docs", label: "Docs" },
   ];
 
