@@ -155,7 +155,12 @@ export default function DocsPage() {
             </p>
             <ul className="list-disc pl-5 space-y-2 mt-4">
               <li><strong>User-Controlled Wallets:</strong> We use Circle's Web SDK to generate embedded wallets via Email OTP. No seed phrases are required.</li>
-              <li><strong>Smart Contract Execution:</strong> When an AI agent finishes a task, our backend securely uses Circle's Server SDK to execute a batch payment from the Treasury to the cited authors.</li>
+              <li>
+                <strong>Master Treasury Escrow:</strong> To prevent forcing researchers to manually sign 5 separate transactions to pay 5 different authors, CiteFlowAI uses a Master Treasury Wallet. Researchers sign a single PIN-authorization for their "Max Budget" which is routed to the Treasury.
+              </li>
+              <li>
+                <strong>Programmatic Smart Contract Routing:</strong> Once the AI agent finishes a task and determines which sources were cited, our backend securely uses Circle's Developer-Controlled Wallets API to execute batch nanopayments from the Treasury directly to the cited authors.
+              </li>
               <li><strong>Arc Testnet:</strong> All transactions are executed securely on the Arc Testnet using USDC.</li>
             </ul>
           </div>
