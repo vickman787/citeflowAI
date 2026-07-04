@@ -193,7 +193,7 @@ export default function ResearchWorkspacePage() {
                   query: query,
                   timestamp: new Date().toISOString(),
                   result: finalResult
-                }, ...prev].slice(0, 5); // Limit to 5
+                }, ...prev].slice(0, 10); // Limit to 10
                 localStorage.setItem('citeflow_research_history', JSON.stringify(newHistory));
                 return newHistory;
               });

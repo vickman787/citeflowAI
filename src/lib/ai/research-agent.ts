@@ -84,6 +84,45 @@ async function callOpenRouterJSON(prompt: string, schema: any) {
   }
 }
 
+async function callGroqJSON(prompt: string, schema: any) {
+  const apiKey = process.env.GROQ_API_KEY
+  if (!apiKey) throw new Error('GROQ_API_KEY is not set')
+
+  const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    method: 'POST',
+    headers: { 
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${apiKey}`
+    },
+    body: JSON.stringify({
+      model: 'llama-3.1-70b-versatile',
+      max_tokens: 1500,
+      messages: [{ role: 'user', content: prompt }],
+      response_format: { type: 'json_object' }
+    })
+  })
+  
+  const data = await response.json()
+  
+  if (!response.ok) {
+    throw new Error(`Groq API Error: ${data.error?.message || 'Unknown'}`)
+  }
+
+  try {
+    const jsonString = data.choices[0].message.content
+    let cleanString = jsonString.trim()
+    const firstBrace = cleanString.indexOf('{')
+    const lastBrace = cleanString.lastIndexOf('}')
+    if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+      cleanString = cleanString.substring(firstBrace, lastBrace + 1)
+    }
+    const parsed = JSON.parse(cleanString)
+    return schema.parse(parsed)
+  } catch (e) {
+    throw new Error('Failed to parse Groq output according to Zod schema')
+  }
+}
+
 async function callAnthropicJSON(prompt: string, schema: any) {
   const apiKey = process.env.ANTHROPIC_API_KEY
   if (!apiKey) throw new Error('ANTHROPIC_API_KEY is not set')
@@ -126,18 +165,34 @@ async function callAnthropicJSON(prompt: string, schema: any) {
 
 async function callLLM(prompt: string, schema: any, onProgress?: (msg: string) => void) {
   try {
-    return await callGeminiJSON(prompt, schema)
+    if (process.env.GROQ_API_KEY) {
+      return await callGroqJSON(prompt, schema)
+    }
+    throw new Error('Groq not configured')
   } catch (e: any) {
-    console.warn(`Gemini API failed: ${e.message}. Falling back...`)
-    if (process.env.ANTHROPIC_API_KEY) {
-      if (onProgress) onProgress('Gemini rate limited. Falling back to Claude Haiku 4.5 (via Anthropic API)...')
-      return await callAnthropicJSON(prompt, schema)
+    console.warn(`Groq API failed or not configured: ${e.message}. Falling back...`)
+    
+    try {
+      if (process.env.ANTHROPIC_API_KEY) {
+        if (onProgress) onProgress('Groq rate limited. Falling back to Claude Haiku 4.5 (via Anthropic API)...')
+        return await callAnthropicJSON(prompt, schema)
+      }
+      throw new Error('Anthropic not configured')
+    } catch (anthropicError: any) {
+      console.warn(`Anthropic API failed or not configured: ${anthropicError.message}. Falling back...`)
+      
+      if (process.env.GEMINI_API_KEY) {
+        if (onProgress) onProgress('Anthropic rate limited. Falling back to Gemini 2.5 Flash...')
+        return await callGeminiJSON(prompt, schema)
+      }
+      
+      if (process.env.OPENROUTER_API_KEY) {
+        if (onProgress) onProgress('Falling back to Claude 3 Haiku (via OpenRouter)...')
+        return await callOpenRouterJSON(prompt, schema)
+      }
+      
+      throw e // Throw original error if all fallbacks fail
     }
-    if (process.env.OPENROUTER_API_KEY) {
-      if (onProgress) onProgress('Gemini rate limited. Falling back to Claude 3 Haiku (via OpenRouter)...')
-      return await callOpenRouterJSON(prompt, schema)
-    }
-    throw e
   }
 }
 
@@ -245,6 +300,8 @@ export async function runResearchAgent(
       "answer": "Your detailed answer...",
       "citationsUsed": ["ID_of_source1", "ID_of_source2"]
     }
+    
+    CRITICAL: The 'citationsUsed' array MUST contain ONLY the exact raw UUID strings of the sources provided above (e.g. "a1b2c3d4-..."). Do not use titles, "Source 1", or any other format. If you use a source, you MUST include its exact ID in this array so the creator can be compensated.
   `
 
   const finalOutput = await callLLM(finalPrompt, finalOutputSchema, onProgress)
