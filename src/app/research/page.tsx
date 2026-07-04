@@ -20,14 +20,31 @@ export default function ResearchWorkspacePage() {
   const [isCopied, setIsCopied] = useState(false)
   const [sdk, setSdk] = useState<W3SSdk | null>(null)
 
+  interface HistoryItem {
+    query: string;
+    timestamp: string;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    result: any;
+  }
+  const [history, setHistory] = useState<HistoryItem[]>([])
+
   // Load from localStorage on mount
   useEffect(() => {
     const savedAddress = localStorage.getItem('circle_wallet_address')
     const savedToken = localStorage.getItem('circle_user_token')
     const savedEncKey = localStorage.getItem('circle_encryption_key')
+    const savedHistory = localStorage.getItem('citeflow_research_history')
+
     if (savedAddress) setWalletAddress(savedAddress)
     if (savedToken) setUserToken(savedToken)
     if (savedEncKey) setEncryptionKey(savedEncKey)
+    if (savedHistory) {
+      try {
+        setHistory(JSON.parse(savedHistory))
+      } catch (e) {
+        console.error("Failed to parse history", e)
+      }
+    }
 
     if (savedToken) {
       fetch('/api/circle/wallet', {
@@ -169,7 +186,17 @@ export default function ResearchWorkspacePage() {
             if (data.type === 'progress') {
               setProgressLog(prev => [...prev, data.payload])
             } else if (data.type === 'done') {
-              setResult(data.payload.result)
+              const finalResult = data.payload.result;
+              setResult(finalResult)
+              setHistory(prev => {
+                const newHistory = [{
+                  query: query,
+                  timestamp: new Date().toISOString(),
+                  result: finalResult
+                }, ...prev].slice(0, 5); // Limit to 5
+                localStorage.setItem('citeflow_research_history', JSON.stringify(newHistory));
+                return newHistory;
+              });
             } else if (data.type === 'error') {
               setError(data.payload)
             }
@@ -260,6 +287,27 @@ export default function ResearchWorkspacePage() {
           </div>
         </div>
       </form>
+
+      {history.length > 0 && !result && !loading && (
+        <div className="mb-12 card-panel p-6 sm:p-8 bg-white">
+          <h2 className="text-xl font-serif font-bold mb-4 text-[var(--color-ink)] border-b border-[var(--color-border-subtle)] pb-2">Recent Research</h2>
+          <div className="space-y-4">
+            {history.map((item, idx) => (
+              <button 
+                key={idx} 
+                onClick={() => {
+                  setQuery(item.query);
+                  setResult(item.result);
+                }}
+                className="w-full text-left p-4 border border-[var(--color-border-subtle)] hover:border-[var(--color-ink)] transition-colors rounded bg-[var(--color-paper)] flex flex-col gap-1"
+              >
+                <div className="font-bold text-[var(--color-ink)] truncate">{item.query}</div>
+                <div className="text-xs text-[var(--color-soft-ink)] font-mono">{new Date(item.timestamp).toLocaleString()}</div>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       <WalletModal 
         isOpen={isWalletModalOpen} 
