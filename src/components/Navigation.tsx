@@ -3,9 +3,10 @@
 import Link from "next/link";
 import Image from "next/image";
 import { useState, useEffect } from "react";
-import { Menu, X, LogIn, LogOut, Copy, Check, Droplet } from "lucide-react";
+import { Menu, X, LogIn, LogOut, Copy, Check, Droplet, Send } from "lucide-react";
 import { createClient } from "@/utils/supabase/client";
 import logoImage from "../../public/logo.jpg";
+import SendModal from "./SendModal";
 
 export function Navigation({ initialUser }: { initialUser?: any }) {
   const [isOpen, setIsOpen] = useState(false);
@@ -13,6 +14,7 @@ export function Navigation({ initialUser }: { initialUser?: any }) {
   const [walletAddress, setWalletAddress] = useState<string | null>(null);
   const [walletBalance, setWalletBalance] = useState<string | null>(null);
   const [isCopied, setIsCopied] = useState(false);
+  const [isSendModalOpen, setIsSendModalOpen] = useState(false);
   const supabase = createClient();
 
   // Sync prop changes from layout
@@ -156,7 +158,7 @@ export function Navigation({ initialUser }: { initialUser?: any }) {
           {walletAddress && (
             <div className="hidden lg:flex items-center gap-3 text-sm text-[var(--color-olive)] font-mono bg-white px-3 py-1.5 border border-[var(--color-border-subtle)] rounded shadow-sm whitespace-nowrap flex-shrink-0">
               <div className="flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-[var(--color-signal-green)] animate-pulse"></span>
+                <span className="w-2 h-2 rounded-full bg-[var(--color-signal-green)] animate-pulse shadow-[0_0_8px_var(--color-signal-green)]"></span>
                 {walletAddress.substring(0, 6)}...{walletAddress.substring(walletAddress.length - 4)}
               </div>
               {walletBalance && (
@@ -166,7 +168,7 @@ export function Navigation({ initialUser }: { initialUser?: any }) {
                 </>
               )}
               <div className="w-px h-4 bg-[var(--color-border-subtle)]"></div>
-              <div className="flex items-center gap-1">
+              <div className="flex items-center gap-1 text-[var(--color-soft-ink)]">
                 <button 
                   type="button"
                   onClick={handleCopy}
@@ -184,6 +186,14 @@ export function Navigation({ initialUser }: { initialUser?: any }) {
                 >
                   <Droplet size={14} />
                 </a>
+                <button 
+                  type="button"
+                  onClick={() => setIsSendModalOpen(true)}
+                  className="p-1 hover:text-[var(--color-ink)] transition-colors"
+                  title="Send USDC"
+                >
+                  <Send size={14} />
+                </button>
                 <button 
                   type="button"
                   onClick={handleWalletLogout}
@@ -278,6 +288,14 @@ export function Navigation({ initialUser }: { initialUser?: any }) {
                     </a>
                     <button 
                       type="button"
+                      onClick={() => setIsSendModalOpen(true)}
+                      className="p-2 hover:bg-[var(--color-paper)] text-[var(--color-ink)] rounded transition-colors"
+                      title="Send USDC"
+                    >
+                      <Send size={16} />
+                    </button>
+                    <button 
+                      type="button"
                       onClick={() => {
                         handleWalletLogout();
                         setIsOpen(false);
@@ -293,6 +311,19 @@ export function Navigation({ initialUser }: { initialUser?: any }) {
             </>
           )}
         </div>
+      )}
+
+      {user && (
+        <SendModal 
+          isOpen={isSendModalOpen} 
+          onClose={() => setIsSendModalOpen(false)} 
+          userToken={typeof window !== 'undefined' ? localStorage.getItem('circle_user_token') || '' : ''}
+          encryptionKey={typeof window !== 'undefined' ? localStorage.getItem('circle_encryption_key') || '' : ''}
+          onSuccess={() => {
+            setIsSendModalOpen(false);
+            window.dispatchEvent(new Event('wallet_changed'));
+          }}
+        />
       )}
     </nav>
   );
