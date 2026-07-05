@@ -10,7 +10,7 @@ Built for the **Request for Build (RFB 02): Selling Agent Services via Nanopayme
 ![CiteFlow AI Tech Stack](https://img.shields.io/badge/Next.js-15-black?style=flat&logo=next.js)
 ![Supabase](https://img.shields.io/badge/Supabase-Database-3ECF8E?style=flat&logo=supabase)
 ![Circle](https://img.shields.io/badge/Circle-Web3_Services-2B88D8?style=flat)
-![Polygon Amoy](https://img.shields.io/badge/Network-Polygon_Amoy-success?style=flat)
+![Arc Testnet](https://img.shields.io/badge/Network-Arc_Testnet-success?style=flat)
 
 ---
 
