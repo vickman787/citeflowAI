@@ -47,7 +47,6 @@ If you are a builder looking to integrate autonomous micro-transactions into you
 - Node.js (v18+)
 - A Supabase Project
 - A Circle Web3 Services API Key (User-Controlled & Developer-Controlled Wallets)
-- API Keys for Gemini and Anthropic (Claude)
 
 ### Environment Variables
 Rename `.env.example` to `.env.local` and fill in your keys:
