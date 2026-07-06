@@ -234,14 +234,16 @@ export function Navigation({ initialUser }: { initialUser?: any }) {
               Logout
             </button>
           ) : (
-            <Link 
-              href="/login"
-              className="flex items-center gap-2 text-base font-sans font-medium text-ink py-2"
-              onClick={() => setIsOpen(false)}
+            <button 
+              onClick={() => {
+                setIsOpen(false);
+                setIsWalletModalOpen(true);
+              }}
+              className="flex items-center gap-2 text-base font-sans font-medium text-ink py-2 text-left"
             >
               <LogIn size={18} />
-              Login
-            </Link>
+              Connect Wallet
+            </button>
           )}
           
           {walletAddress && (
