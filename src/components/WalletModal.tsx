@@ -114,7 +114,13 @@ export default function WalletModal({ isOpen, onClose, onSuccess }: WalletModalP
       if (!res.ok) throw new Error(data.error || 'Failed to initialize wallet challenge');
 
       if (data.address) {
-        // User already has a wallet
+        // User already has a wallet. Let's do the invisible login!
+        await fetch('/api/circle/wallet-login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userToken: token }),
+        });
+        
         setModalState('COMPLETED');
         onSuccess(data.address, token, encKey);
         return;
@@ -131,7 +137,7 @@ export default function WalletModal({ isOpen, onClose, onSuccess }: WalletModalP
           encryptionKey: encKey
         });
 
-        sdk.execute(challengeId, (error, result) => {
+        sdk.execute(challengeId, async (error, result) => {
           if (error) {
             console.error('Challenge Error', error);
             setError(error.message || 'PIN Setup Failed');
@@ -140,6 +146,13 @@ export default function WalletModal({ isOpen, onClose, onSuccess }: WalletModalP
           }
 
           if (result) {
+            // Wallet setup complete. Let's do the invisible login!
+            await fetch('/api/circle/wallet-login', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ userToken: token }),
+            });
+
             setModalState('COMPLETED');
             // Notify parent
             onSuccess('0x... (Wallet Setup Complete)', token, encKey);

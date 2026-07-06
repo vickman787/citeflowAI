@@ -25,7 +25,9 @@ CiteFlow AI captures the essence of RFB 02 by monetizing an agent's work at the 
 
 ## ✨ Core Features
 
-- **Circle User-Controlled Wallets:** Seamless email OTP onboarding for users. They spin up secure Web3 wallets to fund their research budgets instantly.
+- **Invisible Web2-to-Web3 Auth (Circle + Supabase):** Seamless email OTP onboarding via Circle Programmable Wallets. The backend securely and invisibly maps the user's Circle Wallet identity (`0x...@citeflow.local`) directly into a Supabase auth session. Users enjoy a frictionless Web2 feel while holding full Web3 custody. No separate passwords required!
+- **Cross-Device Persistent Research History:** The research history seamlessly follows the user. Research sessions and generated AI answers are stored natively in the Supabase backend, perfectly synced with their Circle Wallet identity across any device.
+- **Automated Treasury Mapping:** The moment a user logs in via Circle, their wallet address is auto-mapped into the Supabase database. This entirely removes the need for manual payment configurations, allowing creators to instantly receive nanopayments with zero setup.
 - **Autonomous Treasury Routing:** The backend LLM orchestration loop securely links user sessions to Circle's infrastructure, routing funds between users, creators, and the platform without human intervention.
 - **RAG & Vector Search:** Fast retrieval of registered creator sources using Supabase.
 - **Multi-Model LLM Fallback (Waterfall Architecture):** Primary synthesis via Gemini 2.5 Flash, with automatic rate-limit fallbacks to Claude Haiku via Anthropic API, ensuring enterprise-grade resilience.

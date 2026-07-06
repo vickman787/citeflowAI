@@ -4,22 +4,6 @@ import { revalidatePath } from 'next/cache'
 import CopyButton from '@/components/CopyButton'
 import { Trash } from 'lucide-react'
 
-async function updateWalletAddress(formData: FormData) {
-  'use server'
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return
-
-  const walletAddress = formData.get('wallet_address') as string
-
-  // Update profile directly
-  await supabase
-    .from('profiles')
-    .update({ wallet_address: walletAddress })
-    .eq('id', user.id)
-
-  revalidatePath('/dashboard')
-}
 
 async function updateSourcePrice(formData: FormData) {
   'use server'
@@ -87,7 +71,17 @@ export default async function DashboardPage() {
   const { data: { user } } = await supabase.auth.getUser()
 
   if (!user) {
-    redirect('/login')
+    return (
+      <div className="flex-1 flex flex-col items-center justify-center pt-24 pb-24 content-container text-center h-[70vh]">
+        <div className="w-20 h-20 mb-6 text-[var(--color-olive)] flex items-center justify-center border-2 border-dashed border-[var(--color-olive)] rounded-full mx-auto">
+          <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"></path><path d="M3 5v14a2 2 0 0 0 2 2h16v-5"></path><path d="M18 12a2 2 0 0 0 0 4h4v-4Z"></path></svg>
+        </div>
+        <h1 className="text-3xl font-serif font-bold text-[var(--color-ink)] mb-4">Dashboard Locked</h1>
+        <p className="text-lg text-[var(--color-soft-ink)] max-w-md mx-auto mb-8">
+          Please connect your Circle Wallet using the button in the top navigation bar to view your creator dashboard and track your Arc Testnet earnings.
+        </p>
+      </div>
+    )
   }
 
   // Fetch profile
@@ -137,11 +131,7 @@ export default async function DashboardPage() {
 
   const walletAddress = profile?.wallet_address || ''
   
-  // Helper to visually shorten wallet addresses
-  const shortenWallet = (address: string) => {
-    if (!address || address.length < 10) return "Not Configured"
-    return `${address.slice(0, 6)}...${address.slice(-4)}`
-  }
+
 
   return (
     <div className="flex-1 flex flex-col pt-12 content-container pb-24">
@@ -150,48 +140,19 @@ export default async function DashboardPage() {
         <p className="text-[var(--color-soft-ink)]">Manage your identity and track your Arc Testnet earnings.</p>
       </header>
 
-      <div className="grid lg:grid-cols-2 gap-8 mb-16">
-        
-        {/* Left: Payment Config */}
-        <section className="card-panel p-6 sm:p-8">
-          <h2 className="text-xl font-sans font-bold mb-6 text-[var(--color-ink)]">Payment Configuration</h2>
-          <form action={updateWalletAddress} className="space-y-6">
-            <div>
-              <label htmlFor="wallet_address" className="label-text">
-                Arc Testnet Wallet Address
-              </label>
-              <input
-                id="wallet_address"
-                name="wallet_address"
-                type="text"
-                defaultValue={walletAddress}
-                placeholder="0x..."
-                pattern="^0x[a-fA-F0-9]{40}$"
-                required
-                className="input-field font-mono text-sm"
-              />
-              <p className="mt-2 text-xs text-[var(--color-olive)]">
-                The AI agent will authorize nanopayments to this address.
-              </p>
-            </div>
-            <button
-              type="submit"
-              className="btn btn-primary w-full sm:w-auto"
-            >
-              Save Configuration
-            </button>
-          </form>
-        </section>
-
-        {/* Right: Wallet & Earnings Summary */}
-        <section className="card-panel p-6 sm:p-8 flex flex-col justify-between bg-[var(--color-paper)]">
+      <div className="mb-16">
+        {/* Account Summary */}
+        <section className="card-panel p-6 sm:p-8 flex flex-col justify-between bg-white border border-[var(--color-border-subtle)]">
           <div>
-            <h2 className="text-xl font-sans font-bold mb-6 text-[var(--color-ink)]">Account Summary</h2>
+            <h2 className="text-xl font-sans font-bold mb-6 text-[var(--color-ink)] flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-[var(--color-signal-green)] animate-pulse shadow-[0_0_8px_var(--color-signal-green)]"></span>
+              Active Wallet connected
+            </h2>
             <div className="space-y-4 mb-8">
               <div className="flex justify-between items-center border-b border-[var(--color-border-subtle)] pb-3">
-                <span className="text-sm font-medium text-[var(--color-soft-ink)]">Active Wallet</span>
+                <span className="text-sm font-medium text-[var(--color-soft-ink)]">Wallet Address</span>
                 <span className="font-mono text-sm text-[var(--color-ink)] font-medium">
-                  {shortenWallet(walletAddress)}
+                  {walletAddress || 'Not Configured'}
                 </span>
               </div>
               <div className="flex justify-between items-center border-b border-[var(--color-border-subtle)] pb-3">
@@ -201,13 +162,13 @@ export default async function DashboardPage() {
             </div>
           </div>
           <div>
-            <p className="text-sm font-medium text-[var(--color-soft-ink)] mb-2">Total Earnings</p>
+            <p className="text-sm font-medium text-[var(--color-soft-ink)] mb-2">Total Platform Earnings</p>
             <p className="text-4xl font-mono font-bold text-[var(--color-ink)]">
               {totalEarnings.toFixed(2)} USDC
             </p>
+            <p className="text-xs text-[var(--color-olive)] mt-2">These are your cumulative lifetime earnings from citations.</p>
           </div>
         </section>
-
       </div>
 
       <section>

@@ -1,8 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import WalletModal from '@/components/WalletModal'
-import { Copy, LogOut, Check } from 'lucide-react'
+import { Copy, LogOut, Check, Trash2 } from 'lucide-react'
 import { W3SSdk } from '@circle-fin/w3s-pw-web-sdk'
 
 export default function ResearchWorkspacePage() {
@@ -12,7 +11,6 @@ export default function ResearchWorkspacePage() {
   const [progressLog, setProgressLog] = useState<string[]>([])
   const [result, setResult] = useState<any>(null)
   const [error, setError] = useState<string | null>(null)
-  const [isWalletModalOpen, setIsWalletModalOpen] = useState(false)
   const [walletAddress, setWalletAddress] = useState<string | null>(null)
   const [walletBalance, setWalletBalance] = useState<string | null>(null)
   const [userToken, setUserToken] = useState<string | null>(null)
@@ -21,6 +19,7 @@ export default function ResearchWorkspacePage() {
   const [sdk, setSdk] = useState<W3SSdk | null>(null)
 
   interface HistoryItem {
+    id?: string;
     query: string;
     timestamp: string;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -33,18 +32,10 @@ export default function ResearchWorkspacePage() {
     const savedAddress = localStorage.getItem('circle_wallet_address')
     const savedToken = localStorage.getItem('circle_user_token')
     const savedEncKey = localStorage.getItem('circle_encryption_key')
-    const savedHistory = localStorage.getItem('citeflow_research_history')
 
     if (savedAddress) setWalletAddress(savedAddress)
     if (savedToken) setUserToken(savedToken)
     if (savedEncKey) setEncryptionKey(savedEncKey)
-    if (savedHistory) {
-      try {
-        setHistory(JSON.parse(savedHistory))
-      } catch (e) {
-        console.error("Failed to parse history", e)
-      }
-    }
 
     if (savedToken) {
       fetch('/api/circle/wallet', {
@@ -55,6 +46,13 @@ export default function ResearchWorkspacePage() {
         if (data.balance) setWalletBalance(data.balance)
       })
       .catch(console.error)
+
+      fetch('/api/research/history')
+        .then(res => res.ok ? res.json() : Promise.reject('Failed'))
+        .then(data => {
+          if (data.history) setHistory(data.history)
+        })
+        .catch(console.error)
     }
 
     if (!sdk) {
@@ -95,6 +93,18 @@ export default function ResearchWorkspacePage() {
     localStorage.removeItem('circle_user_token')
     localStorage.removeItem('circle_encryption_key')
     window.dispatchEvent(new Event('wallet_changed'))
+  }
+
+  const handleDeleteHistory = async (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      const res = await fetch(`/api/research/history?id=${id}`, { method: 'DELETE' });
+      if (res.ok) {
+        setHistory(prev => prev.filter(item => item.id !== id));
+      }
+    } catch (err) {
+      console.error("Failed to delete history", err);
+    }
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -193,8 +203,7 @@ export default function ResearchWorkspacePage() {
                   query: query,
                   timestamp: new Date().toISOString(),
                   result: finalResult
-                }, ...prev].slice(0, 10); // Limit to 10
-                localStorage.setItem('citeflow_research_history', JSON.stringify(newHistory));
+                }, ...prev].slice(0, 20);
                 return newHistory;
               });
             } else if (data.type === 'error') {
@@ -264,26 +273,13 @@ export default function ResearchWorkspacePage() {
           </div>
           
           <div className="flex flex-col gap-2 w-full md:w-auto">
-            {walletAddress ? (
-              <button
-                type="submit"
-                disabled={loading}
-                className="btn btn-primary w-full"
-              >
-                {loading ? 'Executing...' : 'Ask AI'}
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.preventDefault();
-                  setIsWalletModalOpen(true);
-                }}
-                className="btn btn-primary w-full"
-              >
-                Connect Wallet
-              </button>
-            )}
+            <button
+              type="submit"
+              disabled={loading || !walletAddress}
+              className="btn btn-primary w-full"
+            >
+              {loading ? 'Executing...' : 'Ask AI'}
+            </button>
           </div>
         </div>
       </form>
@@ -293,45 +289,33 @@ export default function ResearchWorkspacePage() {
           <h2 className="text-xl font-serif font-bold mb-4 text-[var(--color-ink)] border-b border-[var(--color-border-subtle)] pb-2">Recent Research</h2>
           <div className="space-y-4">
             {history.map((item, idx) => (
-              <button 
-                key={idx} 
-                onClick={() => {
-                  setQuery(item.query);
-                  setResult(item.result);
-                }}
-                className="w-full text-left p-4 border border-[var(--color-border-subtle)] hover:border-[var(--color-ink)] transition-colors rounded bg-[var(--color-paper)] flex flex-col gap-1"
-              >
-                <div className="font-bold text-[var(--color-ink)] truncate">{item.query}</div>
-                <div className="text-xs text-[var(--color-soft-ink)] font-mono">{new Date(item.timestamp).toLocaleString()}</div>
-              </button>
+              <div key={item.id || idx} className="relative group w-full text-left p-4 border border-[var(--color-border-subtle)] hover:border-[var(--color-ink)] transition-colors rounded bg-[var(--color-paper)] flex items-center justify-between">
+                <button 
+                  onClick={() => {
+                    setQuery(item.query);
+                    setResult(item.result);
+                  }}
+                  className="flex-1 flex flex-col gap-1 text-left outline-none pr-4"
+                >
+                  <div className="font-bold text-[var(--color-ink)] truncate max-w-[200px] sm:max-w-xs md:max-w-sm">{item.query}</div>
+                  <div className="text-xs text-[var(--color-soft-ink)] font-mono">{new Date(item.timestamp).toLocaleString()}</div>
+                </button>
+                {item.id && (
+                  <button 
+                    onClick={(e) => handleDeleteHistory(item.id!, e)}
+                    className="p-2 text-[var(--color-rust)] hover:bg-[var(--color-rust)]/10 rounded transition-colors opacity-60 hover:opacity-100"
+                    title="Delete session"
+                  >
+                    <Trash2 className="w-5 h-5" />
+                  </button>
+                )}
+              </div>
             ))}
           </div>
         </div>
       )}
 
-      <WalletModal 
-        isOpen={isWalletModalOpen} 
-        onClose={() => setIsWalletModalOpen(false)} 
-        onSuccess={(address, token, encKey) => {
-          setWalletAddress(address)
-          setUserToken(token)
-          setEncryptionKey(encKey)
-          localStorage.setItem('circle_wallet_address', address)
-          localStorage.setItem('circle_user_token', token)
-          localStorage.setItem('circle_encryption_key', encKey)
-          window.dispatchEvent(new Event('wallet_changed'))
-          setIsWalletModalOpen(false)
-          
-          fetch('/api/circle/wallet', {
-            headers: { 'Authorization': `Bearer ${token}` }
-          })
-          .then(res => res.ok ? res.json() : Promise.reject('Failed'))
-          .then(data => {
-            if (data.balance) setWalletBalance(data.balance)
-          })
-          .catch(console.error)
-        }} 
-      />
+
 
       {error && (
         <div className="mb-8 p-4 border border-[var(--color-rust)] text-[var(--color-rust)] bg-[var(--color-rust)]/5 font-mono text-sm rounded">

@@ -7,6 +7,7 @@ import { Menu, X, LogIn, LogOut, Copy, Check, Droplet, Send } from "lucide-react
 import { createClient } from "@/utils/supabase/client";
 import logoImage from "../../public/logo.jpg";
 import SendModal from "./SendModal";
+import WalletModal from "./WalletModal";
 
 export function Navigation({ initialUser }: { initialUser?: any }) {
   const [isOpen, setIsOpen] = useState(false);
@@ -15,6 +16,7 @@ export function Navigation({ initialUser }: { initialUser?: any }) {
   const [walletBalance, setWalletBalance] = useState<string | null>(null);
   const [isCopied, setIsCopied] = useState(false);
   const [isSendModalOpen, setIsSendModalOpen] = useState(false);
+  const [isWalletModalOpen, setIsWalletModalOpen] = useState(false);
   const supabase = createClient();
 
   // Sync prop changes from layout
@@ -137,25 +139,7 @@ export function Navigation({ initialUser }: { initialUser?: any }) {
           
           <div className="h-6 w-px bg-[var(--color-border-subtle)]"></div>
           
-          {user ? (
-            <button 
-              onClick={handleLogout}
-              className="flex items-center gap-2 text-sm font-sans font-medium text-[var(--color-rust)] hover:opacity-80 transition-opacity"
-            >
-              <LogOut size={16} />
-              Logout
-            </button>
-          ) : (
-            <Link 
-              href="/login"
-              className="flex items-center gap-2 text-sm font-sans font-medium text-ink hover:opacity-80 transition-opacity"
-            >
-              <LogIn size={16} />
-              Login
-            </Link>
-          )}
-
-          {walletAddress && (
+          {walletAddress ? (
             <div className="hidden lg:flex items-center gap-3 text-sm text-[var(--color-olive)] font-mono bg-white px-3 py-1.5 border border-[var(--color-border-subtle)] rounded shadow-sm whitespace-nowrap flex-shrink-0">
               <div className="flex items-center gap-2">
                 <span className="w-2 h-2 rounded-full bg-[var(--color-signal-green)] animate-pulse shadow-[0_0_8px_var(--color-signal-green)]"></span>
@@ -196,7 +180,7 @@ export function Navigation({ initialUser }: { initialUser?: any }) {
                 </button>
                 <button 
                   type="button"
-                  onClick={handleWalletLogout}
+                  onClick={handleLogout}
                   className="p-1 hover:text-[var(--color-rust)] transition-colors"
                   title="Logout Wallet"
                 >
@@ -204,6 +188,13 @@ export function Navigation({ initialUser }: { initialUser?: any }) {
                 </button>
               </div>
             </div>
+          ) : (
+            <button 
+              onClick={() => setIsWalletModalOpen(true)}
+              className="flex items-center gap-2 text-sm font-sans font-bold bg-[var(--color-ink)] text-white px-4 py-2 rounded-lg hover:opacity-90 transition-opacity whitespace-nowrap"
+            >
+              Connect Wallet
+            </button>
           )}
         </div>
 
@@ -313,7 +304,7 @@ export function Navigation({ initialUser }: { initialUser?: any }) {
         </div>
       )}
 
-      {user && (
+      {walletAddress && (
         <SendModal 
           isOpen={isSendModalOpen} 
           onClose={() => setIsSendModalOpen(false)} 
@@ -325,6 +316,20 @@ export function Navigation({ initialUser }: { initialUser?: any }) {
           }}
         />
       )}
+
+      <WalletModal 
+        isOpen={isWalletModalOpen} 
+        onClose={() => setIsWalletModalOpen(false)} 
+        onSuccess={(address, token, encKey) => {
+          setIsWalletModalOpen(false);
+          localStorage.setItem('circle_wallet_address', address);
+          localStorage.setItem('circle_user_token', token);
+          localStorage.setItem('circle_encryption_key', encKey);
+          window.dispatchEvent(new Event('wallet_changed'));
+          // Reload to fetch Supabase user context
+          window.location.reload();
+        }} 
+      />
     </nav>
   );
 }

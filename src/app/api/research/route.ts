@@ -57,10 +57,10 @@ export async function POST(request: NextRequest) {
             (msg) => pushUpdate('progress', msg)
           )
 
-          // Mark session complete
+          // Mark session complete and save the result payload
           await supabase
             .from('research_sessions')
-            .update({ status: 'completed' })
+            .update({ status: 'completed', result: result })
             .eq('id', session.id)
 
           pushUpdate('done', { result, sessionId: session.id })

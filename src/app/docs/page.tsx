@@ -57,13 +57,13 @@ export default function DocsPage() {
                 1. Connect a Web3 Wallet (No Seed Phrase Needed)
               </h3>
               <p className="text-[var(--color-soft-ink)] mb-4">
-                You don't need a crypto extension like MetaMask to use CiteFlowAI. We use Circle's User-Controlled Wallets to generate a secure Web3 wallet bound to your email address.
+                You don't need a crypto extension like MetaMask to use CiteFlowAI. We use Circle's User-Controlled Wallets to generate a secure Web3 wallet bound to your email address, which acts as your universal login!
               </p>
               <ul className="list-disc pl-5 space-y-2 text-[var(--color-ink)]">
-                <li>Click <strong>Connect Wallet</strong> on the Research page.</li>
-                <li>Enter your email address.</li>
-                <li>Enter the One-Time Password (OTP) sent to your email.</li>
+                <li>Click <strong>Connect Wallet</strong> in the top navigation bar.</li>
+                <li>Enter your email address and verify with the One-Time Password (OTP).</li>
                 <li>Create a secure PIN code to authorize future transactions.</li>
+                <li>You are now invisibly authenticated to our backend! Your wallet address is your identity.</li>
               </ul>
             </div>
 
@@ -110,10 +110,9 @@ export default function DocsPage() {
           
           <div className="space-y-8">
             <div className="bg-[var(--color-paper)] p-6 border border-[var(--color-border-subtle)] rounded shadow-sm">
-              <h3 className="text-xl font-bold mb-3">1. Registering an Account</h3>
+              <h3 className="text-xl font-bold mb-3">1. Universal Identity (Circle + Supabase)</h3>
               <p className="text-[var(--color-soft-ink)] mb-4">
-                To get paid for your work, you must create a standard CiteFlowAI account. Once logged in, a creator profile is generated for you. 
-                You can then link a Web3 wallet to your profile to receive payouts.
+                There are no separate "user" or "creator" accounts, and absolutely no passwords. Your Circle Wallet is your entire identity. The moment you connect your wallet via the navbar, our backend automatically maps your address to your creator profile. You never have to manually configure payment settings!
               </p>
             </div>
 
