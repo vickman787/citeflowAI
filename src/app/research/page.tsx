@@ -157,7 +157,7 @@ export default function ResearchWorkspacePage() {
         })
       })
 
-      setProgressLog(prev => [...prev, 'Payment authorized successfully!', 'Booting autonomous AI agent...'])
+      setProgressLog(prev => [...prev, 'Payment authorized successfully!', 'Booting Agent 1...'])
 
       const res = await fetch('/api/research', {
         method: 'POST',

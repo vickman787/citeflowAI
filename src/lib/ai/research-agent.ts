@@ -128,13 +128,13 @@ async function callLLM(prompt: string, schema: any, onProgress?: (msg: string) =
   try {
     return await callGeminiJSON(prompt, schema)
   } catch (e: any) {
-    console.warn(`Gemini API failed: ${e.message}. Falling back...`)
+    console.warn(`Agent 1 API failed: ${e.message}. Falling back...`)
     if (process.env.ANTHROPIC_API_KEY) {
-      if (onProgress) onProgress('Gemini rate limited. Falling back to Claude Haiku (via Anthropic API)...')
+      if (onProgress) onProgress('Agent 1 rate limited. Falling back to Agent 2 (Secondary Node)...')
       return await callAnthropicJSON(prompt, schema)
     }
     if (process.env.OPENROUTER_API_KEY) {
-      if (onProgress) onProgress('Gemini rate limited. Falling back to Claude Haiku (via OpenRouter)...')
+      if (onProgress) onProgress('Agent 1 rate limited. Falling back to Agent 2 (Secondary Node)...')
       return await callOpenRouterJSON(prompt, schema)
     }
     throw e
@@ -155,7 +155,7 @@ export async function runResearchAgent(
   try {
   const supabase = createAdminClient()
 
-  if (onProgress) onProgress('Initializing Agent Treasury and querying network...')
+  if (onProgress) onProgress('Agent 1 initialized. Connecting to Treasury and querying network...')
 
   // 1. Fetch available registered sources
   const { data: sources, error: sourcesError } = await supabase
