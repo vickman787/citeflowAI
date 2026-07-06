@@ -22,6 +22,29 @@ export function Navigation({ initialUser }: { initialUser?: any }) {
   // Sync prop changes from layout
   useEffect(() => {
     setUser(initialUser || null);
+    
+    // Automatically restore backend session if frontend has a wallet token but backend has no user
+    const token = localStorage.getItem('circle_user_token');
+    if (!initialUser && token) {
+      fetch('/api/circle/wallet-login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userToken: token }),
+      })
+      .then(res => {
+        if (res.ok) {
+          // Force a full reload to get the new session from the server
+          window.location.reload();
+        } else {
+          // Token is invalid/expired, log out locally
+          localStorage.removeItem('circle_wallet_address');
+          localStorage.removeItem('circle_user_token');
+          localStorage.removeItem('circle_encryption_key');
+          window.dispatchEvent(new Event('wallet_changed'));
+        }
+      })
+      .catch(console.error);
+    }
   }, [initialUser]);
 
   useEffect(() => {
