@@ -15,7 +15,7 @@ export default function DocsPage() {
         {/* Video Guide */}
         <div className="relative w-full aspect-video rounded overflow-hidden shadow-lg border border-[var(--color-border-subtle)]">
           <iframe
-            src="https://www.youtube.com/embed/2Ld-0Sq2dxE"
+            src="https://www.youtube.com/embed/XpMZf3W5E5A"
             title="CiteFlowAI Video Guide"
             className="absolute top-0 left-0 w-full h-full"
             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
