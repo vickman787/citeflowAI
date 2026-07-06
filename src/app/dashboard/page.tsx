@@ -149,15 +149,15 @@ export default async function DashboardPage() {
               Active Wallet connected
             </h2>
             <div className="space-y-4 mb-8">
-              <div className="flex justify-between items-center border-b border-[var(--color-border-subtle)] pb-3">
-                <span className="text-sm font-medium text-[var(--color-soft-ink)]">Wallet Address</span>
-                <span className="font-mono text-sm text-[var(--color-ink)] font-medium">
+              <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center border-b border-[var(--color-border-subtle)] pb-3 gap-2">
+                <span className="text-sm font-medium text-[var(--color-soft-ink)] shrink-0">Wallet Address</span>
+                <span className="font-mono text-xs sm:text-sm text-[var(--color-ink)] font-medium break-all sm:text-right">
                   {walletAddress || 'Not Configured'}
                 </span>
               </div>
-              <div className="flex justify-between items-center border-b border-[var(--color-border-subtle)] pb-3">
+              <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center border-b border-[var(--color-border-subtle)] pb-3 gap-2">
                 <span className="text-sm font-medium text-[var(--color-soft-ink)]">Network</span>
-                <span className="font-mono text-xs text-[var(--color-ink)] bg-[var(--color-signal-green)] px-2 py-1">Arc Testnet</span>
+                <span className="font-mono text-xs text-[var(--color-ink)] bg-[var(--color-signal-green)] px-2 py-1 w-fit">Arc Testnet</span>
               </div>
             </div>
           </div>
