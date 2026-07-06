@@ -222,18 +222,7 @@ export function Navigation({ initialUser }: { initialUser?: any }) {
             </Link>
           ))}
           <div className="h-px w-full bg-[var(--color-border-subtle)] my-2"></div>
-          {user ? (
-            <button 
-              onClick={() => {
-                setIsOpen(false);
-                handleLogout();
-              }}
-              className="flex items-center gap-2 text-base font-sans font-medium text-[var(--color-rust)] py-2"
-            >
-              <LogOut size={18} />
-              Logout
-            </button>
-          ) : (
+          {!walletAddress && (
             <button 
               onClick={() => {
                 setIsOpen(false);
@@ -290,7 +279,7 @@ export function Navigation({ initialUser }: { initialUser?: any }) {
                     <button 
                       type="button"
                       onClick={() => {
-                        handleWalletLogout();
+                        handleLogout();
                         setIsOpen(false);
                       }}
                       className="p-2 hover:bg-[var(--color-paper)] text-[var(--color-rust)] rounded transition-colors"
