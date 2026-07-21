@@ -2,6 +2,7 @@ import { createClient } from '@/utils/supabase/server'
 import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
 import CopyButton from '@/components/CopyButton'
+import VerifyIdentityPanel from '@/components/VerifyIdentityPanel'
 import { Trash } from 'lucide-react'
 
 
@@ -142,7 +143,7 @@ export default async function DashboardPage() {
 
       <div className="mb-16">
         {/* Account Summary */}
-        <section className="card-panel p-6 sm:p-8 flex flex-col justify-between bg-white border border-[var(--color-border-subtle)]">
+        <section className="card-panel p-6 sm:p-8 flex flex-col justify-between bg-[var(--color-panel)] border border-[var(--color-border-subtle)]">
           <div>
             <h2 className="text-xl font-sans font-bold mb-6 text-[var(--color-ink)] flex items-center gap-2">
               <span className="w-2 h-2 rounded-full bg-[var(--color-signal-green)] animate-pulse shadow-[0_0_8px_var(--color-signal-green)]"></span>
@@ -157,7 +158,7 @@ export default async function DashboardPage() {
               </div>
               <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center border-b border-[var(--color-border-subtle)] pb-3 gap-2">
                 <span className="text-sm font-medium text-[var(--color-soft-ink)]">Network</span>
-                <span className="font-mono text-xs text-[var(--color-ink)] bg-[var(--color-signal-green)] px-2 py-1 w-fit">Arc Testnet</span>
+                <span className="font-mono text-xs text-[var(--color-paper)] bg-[var(--color-signal-green)] px-2 py-1 rounded-[2px] w-fit font-bold">Arc Testnet</span>
               </div>
             </div>
           </div>
@@ -170,6 +171,8 @@ export default async function DashboardPage() {
           </div>
         </section>
       </div>
+
+      <VerifyIdentityPanel />
 
       <section>
         <h2 className="text-2xl font-sans font-bold mb-6 text-[var(--color-ink)]">Registered Sources</h2>
@@ -223,7 +226,7 @@ export default async function DashboardPage() {
                           </div>
 
                         </div>
-                        <button type="submit" className="text-[10px] uppercase tracking-wider font-bold bg-[var(--color-ink)] text-[var(--color-paper)] px-2 py-1 rounded hover:opacity-80 transition-opacity">
+                        <button type="submit" className="text-[10px] uppercase tracking-wider font-bold bg-[var(--color-signal-green)] text-[var(--color-paper)] px-2 py-1 rounded-[2px] hover:brightness-110 transition-all">
                           Update
                         </button>
                       </form>
@@ -235,7 +238,7 @@ export default async function DashboardPage() {
                       </form>
                     </td>
                     <td data-label="Status" className="align-top">
-                      <span className={`inline-block px-2 py-1 text-xs font-mono font-medium ${s.status === 'extracted' ? 'bg-[var(--color-signal-green)]/20 text-[var(--color-ink)]' : 'bg-black/5 text-[var(--color-soft-ink)]'}`}>
+                      <span className={`inline-block px-2 py-1 text-xs font-mono font-medium ${s.status === 'extracted' ? 'bg-[var(--color-signal-green)]/20 text-[var(--color-ink)]' : 'bg-[var(--color-panel-deep)] text-[var(--color-soft-ink)]'}`}>
                         {s.status.toUpperCase()}
                       </span>
                     </td>

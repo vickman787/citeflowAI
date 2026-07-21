@@ -20,19 +20,19 @@ export default async function TreasuryPage() {
 
   return (
     <div className="flex-1 flex flex-col pt-12 px-8 max-w-4xl mx-auto w-full">
-      <div className="mb-12 border-b border-thin-line pb-8">
+      <div className="mb-12 border-b border-[var(--color-border-subtle)] pb-8">
         <h1 className="text-4xl font-serif mb-4">Agent Treasury</h1>
         <p className="text-lg opacity-80 font-mono">
           Live monitoring of the AI Agent's global Arc Testnet spending limits.
         </p>
       </div>
 
-      <div className="bg-white border border-thin-line p-8 shadow-sm mb-12">
+      <div className="bg-[var(--color-panel)] border border-[var(--color-border-subtle)] p-8  mb-12">
         <h2 className="text-xs font-mono uppercase tracking-widest opacity-60 mb-8">Daily Global Budget ({today})</h2>
         
         <div className="flex flex-col md:flex-row gap-8 justify-between items-start md:items-end mb-8">
           <div>
-            <div className="text-5xl font-mono text-deep-ink font-bold">${spent.toFixed(2)}</div>
+            <div className="text-5xl font-mono text-[var(--color-ink)] font-bold">${spent.toFixed(2)}</div>
             <div className="text-sm font-mono opacity-60 mt-2 uppercase tracking-widest">Total Spent Today</div>
           </div>
           <div className="text-right">
@@ -41,9 +41,9 @@ export default async function TreasuryPage() {
           </div>
         </div>
 
-        <div className="w-full h-4 bg-warm-paper border border-thin-line relative overflow-hidden">
+        <div className="w-full h-4 bg-[var(--color-paper)] border border-[var(--color-border-subtle)] relative overflow-hidden">
           <div 
-            className="absolute top-0 left-0 h-full bg-deep-ink transition-all duration-1000"
+            className="absolute top-0 left-0 h-full bg-[var(--color-signal-green)] transition-all duration-1000"
             style={{ width: `${Math.min(percentage, 100)}%` }}
           />
         </div>
@@ -53,8 +53,8 @@ export default async function TreasuryPage() {
         </div>
       </div>
 
-      <div className="bg-deep-ink text-warm-paper p-6 font-mono text-sm">
-        <div className="flex items-center gap-3 mb-4 border-b border-warm-paper/30 pb-2">
+      <div className="bg-[var(--color-panel-deep)] text-[var(--color-ink)] border border-[var(--color-border-subtle)] p-6 font-mono text-sm">
+        <div className="flex items-center gap-3 mb-4 border-b border-[var(--color-border-strong)] pb-2">
           <div className="w-2 h-2 rounded-full bg-signal-green animate-pulse"></div>
           <span>TREASURY STATUS: OPERATIONAL</span>
         </div>

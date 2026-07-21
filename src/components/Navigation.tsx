@@ -1,13 +1,22 @@
 "use client"
 
 import Link from "next/link";
-import Image from "next/image";
-import { useState, useEffect } from "react";
-import { Menu, X, LogIn, LogOut, Copy, Check, Droplet, Send } from "lucide-react";
+import { usePathname } from "next/navigation";
+import { useState, useEffect, useRef } from "react";
+import { Menu, X, LogIn, LogOut, Copy, Check, Droplet, Send, ChevronDown } from "lucide-react";
 import { createClient } from "@/utils/supabase/client";
-import logoImage from "../../public/logo.jpg";
 import SendModal from "./SendModal";
 import WalletModal from "./WalletModal";
+
+function LogoMark({ size = 28 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 512 512" aria-hidden="true">
+      <rect width="512" height="512" rx="118" fill="#C6FF4D" />
+      <path d="M133,172 h96 v72 h-48 v32 h48 v64 h-96 z" fill="#0C0E0A" />
+      <path d="M283,172 h96 v72 h-48 v32 h48 v64 h-96 z" fill="#0C0E0A" />
+    </svg>
+  );
+}
 
 export function Navigation({ initialUser }: { initialUser?: any }) {
   const [isOpen, setIsOpen] = useState(false);
@@ -17,7 +26,29 @@ export function Navigation({ initialUser }: { initialUser?: any }) {
   const [isCopied, setIsCopied] = useState(false);
   const [isSendModalOpen, setIsSendModalOpen] = useState(false);
   const [isWalletModalOpen, setIsWalletModalOpen] = useState(false);
+  const [isWalletMenuOpen, setIsWalletMenuOpen] = useState(false);
+  const walletMenuRef = useRef<HTMLDivElement>(null);
+  const pathname = usePathname();
   const supabase = createClient();
+
+  // Close the wallet dropdown on outside click or Escape
+  useEffect(() => {
+    if (!isWalletMenuOpen) return;
+    const onClick = (e: MouseEvent) => {
+      if (walletMenuRef.current && !walletMenuRef.current.contains(e.target as Node)) {
+        setIsWalletMenuOpen(false);
+      }
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setIsWalletMenuOpen(false);
+    };
+    document.addEventListener('mousedown', onClick);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onClick);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [isWalletMenuOpen]);
 
   // Sync prop changes from layout
   useEffect(() => {
@@ -60,9 +91,12 @@ export function Navigation({ initialUser }: { initialUser?: any }) {
         if (res.ok) {
           const data = await res.json()
           if (data.balance) setWalletBalance(data.balance)
+        } else if (res.status === 401) {
+          // Circle userToken expired (they live ~60 min) — drop the stale local session
+          handleWalletLogout()
         }
       } catch(e) {
-        console.error(e)
+        console.warn('Wallet balance fetch failed:', e)
       }
     }
 
@@ -124,106 +158,130 @@ export function Navigation({ initialUser }: { initialUser?: any }) {
   };
 
   const navLinks = [
-    { href: "/research", label: "Agent" },
-    { href: "/register-article", label: "Register Work" },
-    { href: "/dashboard", label: "Dashboard" },
-    { href: "/docs", label: "Docs" },
+    { href: "/research", label: "agent" },
+    { href: "/register-article", label: "register" },
+    { href: "/dashboard", label: "dashboard" },
+    { href: "/docs", label: "docs" },
   ];
 
   return (
-    <nav className="w-full bg-paper border-b border-[var(--color-border-subtle)] sticky top-0 z-50">
-      <div className="content-container h-16 flex items-center justify-between gap-4 xl:gap-8">
-        
+    <nav className="w-full bg-[var(--color-paper)] border-b border-[var(--color-border-subtle)] sticky top-0 z-40">
+      <div className="content-container h-16 flex items-center gap-6 xl:gap-8">
+
         {/* Logo and Wordmark */}
-        <Link href="/" className="flex items-center gap-3 flex-shrink-0">
-          <Image 
-            src={logoImage} 
-            alt="CiteFlowAI Logo" 
-            width={32} 
-            height={32} 
-            className="rounded" 
-            style={{ objectFit: 'contain' }}
-            priority
-          />
-          <span className="font-sans font-bold text-xl tracking-tight text-ink">CiteFlowAI</span>
+        <Link href="/" className="flex items-center gap-3 flex-shrink-0 font-mono">
+          <LogoMark />
+          <span className="font-bold text-lg tracking-tight text-[var(--color-ink)]">
+            citeflow<span className="text-[var(--color-signal-green)]">_ai</span>
+          </span>
         </Link>
-        
-        {/* Desktop Nav */}
-        <div className="hidden md:flex items-center gap-4 lg:gap-6 flex-shrink-0">
-          {navLinks.map((link) => (
-            <Link 
-              key={link.href}
-              href={link.href} 
-              className="text-sm font-sans font-medium text-soft-ink hover:text-ink transition-colors"
-            >
-              {link.label}
-            </Link>
-          ))}
-          
-          <div className="h-6 w-px bg-[var(--color-border-subtle)]"></div>
-          
+
+        {/* Links — grouped next to the logo, terminal-style */}
+        <div className="hidden md:flex items-center gap-5 lg:gap-7 flex-shrink-0 ml-2">
+          {navLinks.map((link) => {
+            const active = pathname === link.href || (link.href !== '/' && pathname?.startsWith(link.href));
+            return (
+              <Link
+                key={link.href}
+                href={link.href}
+                className={`text-sm font-mono transition-colors ${
+                  active
+                    ? 'text-[var(--color-signal-green)]'
+                    : 'text-[var(--color-soft-ink)] hover:text-[var(--color-ink)]'
+                }`}
+              >
+                {active && <span aria-hidden="true">▸ </span>}
+                {link.label}
+              </Link>
+            );
+          })}
+        </div>
+
+        {/* Wallet — pushed to the far right */}
+        <div className="hidden md:flex items-center ml-auto flex-shrink-0">
           {walletAddress ? (
-            <div className="hidden lg:flex items-center gap-3 text-sm text-[var(--color-olive)] font-mono bg-white px-3 py-1.5 border border-[var(--color-border-subtle)] rounded shadow-sm whitespace-nowrap flex-shrink-0">
-              <div className="flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-[var(--color-signal-green)] animate-pulse shadow-[0_0_8px_var(--color-signal-green)]"></span>
-                {walletAddress.substring(0, 6)}...{walletAddress.substring(walletAddress.length - 4)}
-              </div>
-              {walletBalance && (
-                <>
-                  <div className="w-px h-4 bg-[var(--color-border-subtle)]"></div>
-                  <div className="font-bold text-[var(--color-ink)]">${Number(walletBalance).toFixed(2)} USDC</div>
-                </>
+            <div className="relative" ref={walletMenuRef}>
+              <button
+                type="button"
+                onClick={() => setIsWalletMenuOpen((v) => !v)}
+                aria-expanded={isWalletMenuOpen}
+                aria-haspopup="menu"
+                className="flex items-center gap-2.5 text-sm text-[var(--color-soft-ink)] font-mono bg-[var(--color-panel-deep)] px-3.5 py-2 border border-[var(--color-border-strong)] rounded-[2px] whitespace-nowrap cursor-pointer hover:border-[var(--color-signal-green)] transition-colors"
+              >
+                <span className="glow-dot animate-pulse"></span>
+                <span>{walletAddress.substring(0, 4)}…{walletAddress.substring(walletAddress.length - 4)}</span>
+                {walletBalance && (
+                  <>
+                    <span className="text-[var(--color-faint)]">·</span>
+                    <span className="font-bold text-[var(--color-ink)]">${Number(walletBalance).toFixed(2)} USDC</span>
+                  </>
+                )}
+                <ChevronDown size={13} className={`text-[var(--color-faint)] transition-transform ${isWalletMenuOpen ? 'rotate-180' : ''}`} />
+              </button>
+
+              {isWalletMenuOpen && (
+                <div
+                  role="menu"
+                  className="absolute right-0 top-[calc(100%+6px)] w-56 bg-[var(--color-panel)] border border-[var(--color-border-strong)] rounded-[2px] shadow-[0_12px_40px_rgba(0,0,0,0.6)] z-50 font-mono text-sm overflow-hidden"
+                >
+                  <div className="px-4 py-3 border-b border-[var(--color-border-subtle)]">
+                    <div className="text-[0.6rem] uppercase tracking-[0.16em] text-[var(--color-faint)] mb-1">connected wallet</div>
+                    <div className="text-xs text-[var(--color-soft-ink)] break-all">{walletAddress}</div>
+                  </div>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={handleCopy}
+                    className="w-full flex items-center gap-3 px-4 py-2.5 text-[var(--color-ink)] hover:bg-[var(--color-panel-deep)] hover:text-[var(--color-signal-green)] transition-colors text-left"
+                  >
+                    {isCopied ? <Check size={14} className="text-[var(--color-signal-green)]" /> : <Copy size={14} />}
+                    {isCopied ? 'copied!' : 'copy address'}
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => { setIsWalletMenuOpen(false); setIsSendModalOpen(true); }}
+                    className="w-full flex items-center gap-3 px-4 py-2.5 text-[var(--color-ink)] hover:bg-[var(--color-panel-deep)] hover:text-[var(--color-signal-green)] transition-colors text-left"
+                  >
+                    <Send size={14} />
+                    send usdc
+                  </button>
+                  <a
+                    role="menuitem"
+                    href="https://faucet.circle.com/"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={() => setIsWalletMenuOpen(false)}
+                    className="w-full flex items-center gap-3 px-4 py-2.5 text-[var(--color-ink)] hover:bg-[var(--color-panel-deep)] hover:text-[var(--color-signal-green)] transition-colors"
+                  >
+                    <Droplet size={14} />
+                    faucet
+                  </a>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => { setIsWalletMenuOpen(false); handleLogout(); }}
+                    className="w-full flex items-center gap-3 px-4 py-2.5 text-[var(--color-rust)] hover:bg-[var(--color-rust)]/10 transition-colors text-left border-t border-[var(--color-border-subtle)]"
+                  >
+                    <LogOut size={14} />
+                    disconnect
+                  </button>
+                </div>
               )}
-              <div className="w-px h-4 bg-[var(--color-border-subtle)]"></div>
-              <div className="flex items-center gap-1 text-[var(--color-soft-ink)]">
-                <button 
-                  type="button"
-                  onClick={handleCopy}
-                  className="p-1 hover:text-[var(--color-ink)] transition-colors"
-                  title="Copy Address"
-                >
-                  {isCopied ? <Check size={14} className="text-[var(--color-signal-green)]" /> : <Copy size={14} />}
-                </button>
-                <a 
-                  href="https://faucet.circle.com/"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="p-1 hover:text-blue-500 transition-colors"
-                  title="Get Testnet USDC from Circle Faucet"
-                >
-                  <Droplet size={14} />
-                </a>
-                <button 
-                  type="button"
-                  onClick={() => setIsSendModalOpen(true)}
-                  className="p-1 hover:text-[var(--color-ink)] transition-colors"
-                  title="Send USDC"
-                >
-                  <Send size={14} />
-                </button>
-                <button 
-                  type="button"
-                  onClick={handleLogout}
-                  className="p-1 hover:text-[var(--color-rust)] transition-colors"
-                  title="Logout Wallet"
-                >
-                  <LogOut size={14} />
-                </button>
-              </div>
             </div>
           ) : (
-            <button 
+            <button
               onClick={() => setIsWalletModalOpen(true)}
-              className="flex items-center gap-2 text-sm font-sans font-bold bg-[var(--color-ink)] text-white px-4 py-2 rounded-lg hover:opacity-90 transition-opacity whitespace-nowrap"
+              className="flex items-center gap-2 text-sm font-mono font-bold bg-[var(--color-signal-green)] text-[var(--color-paper)] px-4 py-2 rounded-[2px] hover:brightness-110 transition-all whitespace-nowrap"
             >
-              Connect Wallet
+              connect_wallet
             </button>
           )}
         </div>
 
         {/* Mobile Nav Toggle */}
-        <button 
-          className="md:hidden p-2 text-ink"
+        <button
+          className="md:hidden ml-auto p-2 text-[var(--color-ink)]"
           onClick={() => setIsOpen(!isOpen)}
           aria-label="Toggle Menu"
         >
@@ -233,12 +291,12 @@ export function Navigation({ initialUser }: { initialUser?: any }) {
 
       {/* Mobile Nav Menu */}
       {isOpen && (
-        <div className="md:hidden absolute top-16 left-0 w-full bg-paper border-b border-[var(--color-border-subtle)] px-6 py-4 flex flex-col gap-4 shadow-lg">
+        <div className="md:hidden absolute top-16 left-0 w-full bg-[var(--color-panel)] border-b border-[var(--color-border-subtle)] px-6 py-4 flex flex-col gap-4 shadow-lg z-40">
           {navLinks.map((link) => (
-            <Link 
+            <Link
               key={link.href}
-              href={link.href} 
-              className="text-base font-sans font-medium text-ink py-2"
+              href={link.href}
+              className="text-base font-mono text-[var(--color-ink)] py-2"
               onClick={() => setIsOpen(false)}
             >
               {link.label}
@@ -246,66 +304,66 @@ export function Navigation({ initialUser }: { initialUser?: any }) {
           ))}
           <div className="h-px w-full bg-[var(--color-border-subtle)] my-2"></div>
           {!walletAddress && (
-            <button 
+            <button
               onClick={() => {
                 setIsOpen(false);
                 setIsWalletModalOpen(true);
               }}
-              className="flex items-center gap-2 text-base font-sans font-medium text-ink py-2 text-left"
+              className="flex items-center gap-2 text-base font-mono font-bold text-[var(--color-signal-green)] py-2 text-left"
             >
               <LogIn size={18} />
-              Connect Wallet
+              connect_wallet
             </button>
           )}
-          
+
           {walletAddress && (
             <>
               <div className="h-px w-full bg-[var(--color-border-subtle)] my-2"></div>
               <div className="flex flex-col gap-3 py-2">
-                <div className="text-xs uppercase tracking-wider font-bold text-[var(--color-soft-ink)]">Connected Wallet</div>
-                <div className="flex items-center justify-between bg-white px-3 py-2 border border-[var(--color-border-subtle)] rounded shadow-sm">
+                <div className="text-xs uppercase tracking-wider font-bold font-mono text-[var(--color-faint)]">Connected Wallet</div>
+                <div className="flex items-center justify-between bg-[var(--color-panel-deep)] px-3 py-2 border border-[var(--color-border-strong)] rounded-[2px]">
                   <div className="flex flex-col gap-1">
-                    <div className="flex items-center gap-2 font-mono text-sm text-[var(--color-olive)]">
-                      <span className="w-2 h-2 rounded-full bg-[var(--color-signal-green)] animate-pulse"></span>
+                    <div className="flex items-center gap-2 font-mono text-sm text-[var(--color-soft-ink)]">
+                      <span className="glow-dot animate-pulse"></span>
                       {walletAddress.substring(0, 6)}...{walletAddress.substring(walletAddress.length - 4)}
                     </div>
                     {walletBalance && (
-                      <div className="font-bold text-[var(--color-ink)]">${Number(walletBalance).toFixed(2)} USDC</div>
+                      <div className="font-bold font-mono text-[var(--color-ink)]">${Number(walletBalance).toFixed(2)} USDC</div>
                     )}
                   </div>
                   <div className="flex items-center gap-2 border-l border-[var(--color-border-subtle)] pl-3">
-                    <button 
+                    <button
                       type="button"
                       onClick={handleCopy}
-                      className="p-2 hover:bg-[var(--color-paper)] rounded transition-colors"
+                      className="p-2 hover:text-[var(--color-signal-green)] rounded transition-colors"
                       title="Copy Address"
                     >
                       {isCopied ? <Check size={16} className="text-[var(--color-signal-green)]" /> : <Copy size={16} />}
                     </button>
-                    <a 
+                    <a
                       href="https://faucet.circle.com/"
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="p-2 hover:bg-[var(--color-paper)] text-blue-500 rounded transition-colors"
+                      className="p-2 hover:text-[var(--color-signal-green)] rounded transition-colors"
                       title="Get Testnet USDC from Circle Faucet"
                     >
                       <Droplet size={16} />
                     </a>
-                    <button 
+                    <button
                       type="button"
                       onClick={() => setIsSendModalOpen(true)}
-                      className="p-2 hover:bg-[var(--color-paper)] text-[var(--color-ink)] rounded transition-colors"
+                      className="p-2 hover:text-[var(--color-signal-green)] rounded transition-colors"
                       title="Send USDC"
                     >
                       <Send size={16} />
                     </button>
-                    <button 
+                    <button
                       type="button"
                       onClick={() => {
                         handleLogout();
                         setIsOpen(false);
                       }}
-                      className="p-2 hover:bg-[var(--color-paper)] text-[var(--color-rust)] rounded transition-colors"
+                      className="p-2 hover:text-[var(--color-rust)] rounded transition-colors"
                       title="Logout Wallet"
                     >
                       <LogOut size={16} />

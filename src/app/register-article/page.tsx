@@ -1,18 +1,34 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 
 export default function RegisterArticlePage() {
   const [url, setUrl] = useState('')
-  const [price, setPrice] = useState('0.05')
+  const [price, setPrice] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
+  const [walletAddress, setWalletAddress] = useState<string | null>(null)
   const router = useRouter()
+
+  useEffect(() => {
+    const syncWallet = () => setWalletAddress(localStorage.getItem('circle_wallet_address'))
+    syncWallet()
+    window.addEventListener('storage', syncWallet)
+    window.addEventListener('wallet_changed', syncWallet)
+    return () => {
+      window.removeEventListener('storage', syncWallet)
+      window.removeEventListener('wallet_changed', syncWallet)
+    }
+  }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (!walletAddress) {
+      setError('Connect your wallet before registering a source.')
+      return
+    }
     setLoading(true)
     setError(null)
     setSuccess(false)
@@ -49,9 +65,20 @@ export default function RegisterArticlePage() {
           <p className="text-lg text-[var(--color-soft-ink)]">
             Submit your work to the CiteFlowAI network. Set a citation-licence price in USDC.
           </p>
+          <p className="text-sm text-[var(--color-olive)] mt-3 font-mono">
+            You can only register content from a domain or handle you&apos;ve verified — head to your{' '}
+            <a href="/dashboard" className="text-[var(--color-signal-green)] underline">dashboard</a> to verify ownership first.
+          </p>
         </div>
 
         <form onSubmit={handleSubmit} className="card-panel p-8 sm:p-10">
+          {!walletAddress && (
+            <div className="mb-6 p-4 border border-[var(--color-amber)] text-[var(--color-amber)] bg-[var(--color-amber)]/10 font-mono text-sm rounded flex items-center gap-2">
+              <span>⚠</span>
+              <span>Connect your wallet from the top navigation bar to register a source.</span>
+            </div>
+          )}
+
           {error && (
             <div className="mb-6 p-4 border border-[var(--color-rust)] text-[var(--color-rust)] bg-[var(--color-rust)]/5 font-mono text-sm rounded">
               ERROR: {error}
@@ -96,6 +123,7 @@ export default function RegisterArticlePage() {
                   step="0.01"
                   value={price}
                   onChange={(e) => setPrice(e.target.value)}
+                  placeholder="0.05"
                   className="input-field font-mono"
                   style={{ paddingLeft: '2.5rem' }}
                   disabled={loading}
@@ -109,10 +137,11 @@ export default function RegisterArticlePage() {
             <div className="pt-6 border-t border-[var(--color-border-subtle)]">
               <button
                 type="submit"
-                disabled={loading}
+                disabled={loading || !walletAddress}
+                title={!walletAddress ? 'Connect your wallet first' : undefined}
                 className="btn btn-primary w-full"
               >
-                {loading ? 'Extracting...' : 'Register Source'}
+                {loading ? 'Extracting...' : !walletAddress ? 'Connect wallet to register' : 'Register Source'}
               </button>
             </div>
           </div>

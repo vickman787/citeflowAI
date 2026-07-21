@@ -1,6 +1,7 @@
 import { createAdminClient } from '@/utils/supabase/admin'
 import { authorizePayment } from '../payments/treasury'
 import { executeGatewayTransfer } from '../payments/circle-api'
+import { embedQuery, cosineSimilarity, parseVector } from './embeddings'
 import { z } from 'zod'
 
 const evaluationSchema = z.object({
@@ -141,12 +142,39 @@ async function callLLM(prompt: string, schema: any, onProgress?: (msg: string) =
   }
 }
 
+// Per-source context budget shown to the LLM (in chunks of ~1000 chars).
+// Chunks are ranked by embedding similarity to the query; chunks without
+// embeddings (older sources) fall back to document order.
+const TOP_CHUNKS_PER_SOURCE = 8
+
+function selectRelevantChunks(
+  chunks: { chunk_text: string, embedding: string | number[] | null }[],
+  queryEmbedding: number[] | null
+): string {
+  let ranked = chunks
+  if (queryEmbedding) {
+    const scored = chunks.map((c, i) => {
+      const v = parseVector(c.embedding)
+      return { i, score: v ? cosineSimilarity(queryEmbedding, v) : -1 }
+    })
+    // If nothing has embeddings every score is -1 and document order is preserved (stable sort)
+    scored.sort((a, b) => b.score - a.score)
+    ranked = scored.slice(0, TOP_CHUNKS_PER_SOURCE)
+      .sort((a, b) => a.i - b.i) // restore document order for readability
+      .map(s => chunks[s.i])
+  } else {
+    ranked = chunks.slice(0, TOP_CHUNKS_PER_SOURCE)
+  }
+  return ranked.map(c => c.chunk_text).join('\n[...]\n')
+}
+
 export async function runResearchAgent(
-  sessionId: string, 
-  query: string, 
+  sessionId: string,
+  query: string,
   initialBudget: number,
   walletAddress: string | undefined,
-  onProgress?: (msg: string) => void
+  onProgress?: (msg: string) => void,
+  cookieHeader?: string
 ) {
   let maxBudget = initialBudget;
   let totalSpentOnSources = 0;
@@ -160,10 +188,20 @@ export async function runResearchAgent(
   // 1. Fetch available registered sources
   const { data: sources, error: sourcesError } = await supabase
     .from('sources')
-    .select('id, url, title, price_usdc, source_chunks(chunk_text)')
+    .select('id, url, title, price_usdc, source_chunks(chunk_text, embedding)')
     .eq('status', 'extracted')
 
   if (sourcesError || !sources) throw new Error('Failed to fetch sources')
+
+  // Embed the query once for chunk-level retrieval across all sources.
+  // If embedding fails (e.g. quota), fall back to document-order chunk selection.
+  let queryEmbedding: number[] | null = null
+  try {
+    queryEmbedding = await embedQuery(query)
+  } catch (e: any) {
+    console.warn('Query embedding failed, falling back to document-order retrieval:', e.message)
+    if (onProgress) onProgress('Vector index unavailable. Falling back to sequential scan...')
+  }
 
   const purchasedSources: any[] = []
   const relevantSources: any[] = []
@@ -176,7 +214,7 @@ export async function runResearchAgent(
     // Only evaluate sources we can afford within our remaining allocated budget
     if (allocatedBudget + parseFloat(source.price_usdc) > initialBudget) continue
 
-    const sourceContent = source.source_chunks.map((c: any) => c.chunk_text).join('\n').substring(0, 5000)
+    const sourceContent = selectRelevantChunks(source.source_chunks, queryEmbedding)
 
     const evalPrompt = `
       Evaluate the relevance and contribution of the following source text to the user's research query.
@@ -264,7 +302,10 @@ export async function runResearchAgent(
       const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
       const licenseRes = await fetch(`${baseUrl}/api/sources/${source.id}/license`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(cookieHeader ? { 'Cookie': cookieHeader } : {})
+        },
         body: JSON.stringify(payload)
       })
 

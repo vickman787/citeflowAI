@@ -1,22 +1,30 @@
 @import "tailwindcss";
 
+/* ── THE TERMINAL — phosphor-green command deck ─────────────────── */
+
 @theme {
-  --color-paper: #F3F0E8;
-  --color-ink: #151713;
-  --color-soft-ink: #34382F;
-  --color-olive: #69705A;
-  --color-signal-green: #B9F34A;
-  --color-rust: #C65A38;
-  --color-border-subtle: rgba(21, 23, 19, 0.16);
+  --color-paper: #0C0E0A;          /* page background */
+  --color-panel: #161A11;          /* raised surfaces */
+  --color-panel-deep: #12150E;     /* inputs, wells */
+  --color-ink: #E8EDDA;            /* primary text */
+  --color-soft-ink: #9BA588;       /* secondary text */
+  --color-olive: #8B9478;          /* muted text, labels */
+  --color-faint: #5A6350;          /* faintest text */
+  --color-signal-green: #C6FF4D;   /* phosphor accent */
+  --color-amber: #FFB454;          /* scores, warnings */
+  --color-rust: #FF6B4A;           /* errors */
+  --color-border-subtle: rgba(232, 237, 218, 0.1);
+  --color-border-strong: rgba(232, 237, 218, 0.22);
 
   --font-sans: var(--font-sans);
   --font-mono: var(--font-mono);
-  --font-serif: var(--font-serif);
+  --font-serif: var(--font-mono); /* terminal theme: headings render mono */
 }
 
 :root {
   --background: var(--color-paper);
   --foreground: var(--color-ink);
+  --green-glow: rgba(198, 255, 77, 0.14);
 }
 
 body {
@@ -28,13 +36,22 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-/* Typographic Defaults */
+/* CRT scanline overlay — sits above content, below modals (z-50) */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background: repeating-linear-gradient(0deg, transparent 0 2px, rgba(0, 0, 0, 0.1) 2px 4px);
+  z-index: 30;
+  opacity: 0.3;
+}
+
 h1, h2, h3, h4, h5, h6 {
   color: var(--color-ink);
 }
 
 @layer components {
-  /* Button Base styles */
   .btn {
     display: inline-flex;
     align-items: center;
@@ -42,85 +59,160 @@ h1, h2, h3, h4, h5, h6 {
     min-height: 44px;
     padding: 0 1.5rem;
     border-radius: 2px;
-    font-family: var(--font-sans);
-    font-weight: 500;
-    font-size: 0.875rem; /* 14px */
+    font-family: var(--font-mono);
+    font-weight: 700;
+    font-size: 0.85rem;
+    letter-spacing: 0.04em;
+    white-space: nowrap;
     transition: all 0.2s ease;
     cursor: pointer;
     text-decoration: none;
   }
 
   .btn:disabled {
-    opacity: 0.5;
+    opacity: 0.4;
     cursor: not-allowed;
   }
 
   .btn-primary {
-    background-color: var(--color-ink);
+    background-color: var(--color-signal-green);
     color: var(--color-paper);
-    border: 1px solid var(--color-ink);
+    border: 1px solid var(--color-signal-green);
   }
   .btn-primary:hover:not(:disabled) {
-    background-color: var(--color-soft-ink);
-    color: white;
+    box-shadow: 0 0 24px var(--green-glow);
+    filter: brightness(1.08);
   }
 
   .btn-highlight {
-    background-color: var(--color-signal-green);
-    color: var(--color-ink);
-    border: 1px solid var(--color-ink);
+    background-color: transparent;
+    color: var(--color-signal-green);
+    border: 1px solid var(--color-signal-green);
   }
   .btn-highlight:hover:not(:disabled) {
-    background-color: #A5DF3F;
+    background-color: var(--green-glow);
   }
 
   .btn-secondary {
     background-color: transparent;
     color: var(--color-ink);
-    border: 1px solid var(--color-border-subtle);
+    border: 1px solid var(--color-border-strong);
   }
   .btn-secondary:hover:not(:disabled) {
     border-color: var(--color-ink);
-    background-color: rgba(21, 23, 19, 0.04);
+    background-color: rgba(232, 237, 218, 0.05);
   }
 
-  /* Input Base */
   .input-field {
     width: 100%;
     min-height: 44px;
     padding: 0.75rem 1rem;
-    background-color: #FFFFFF;
-    border: 1px solid var(--color-border-subtle);
+    background-color: var(--color-panel-deep);
+    border: 1px solid var(--color-border-strong);
     color: var(--color-ink);
-    font-family: var(--font-sans);
-    font-size: 1rem;
+    font-family: var(--font-mono);
+    font-size: 0.9rem;
     transition: all 0.2s ease;
     border-radius: 2px;
   }
 
   .input-field:focus {
     outline: none;
-    border-color: var(--color-ink);
-    box-shadow: 0 0 0 2px var(--color-signal-green);
+    border-color: var(--color-signal-green);
+    box-shadow: 0 0 0 1px var(--color-signal-green), 0 0 30px var(--green-glow);
   }
 
-  /* Label Base */
+  .input-field::placeholder {
+    color: var(--color-faint);
+  }
+
   .label-text {
     display: block;
-    font-size: 0.875rem;
+    font-family: var(--font-mono);
+    font-size: 0.68rem;
     font-weight: 500;
-    color: var(--color-soft-ink);
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--color-olive);
     margin-bottom: 0.5rem;
-    font-family: var(--font-sans);
   }
 
-  /* Cards & Panels */
   .card-panel {
-    background-color: #FFFFFF;
+    background-color: var(--color-panel);
     border: 1px solid var(--color-border-subtle);
-    border-radius: 4px;
+    border-radius: 2px;
   }
-  /* Layout Utilities */
+
+  /* Panel header strip — used above terminal/answer/ledger sections */
+  .panel-h {
+    display: flex;
+    align-items: center;
+    gap: 0.7rem;
+    font-family: var(--font-mono);
+    font-size: 0.66rem;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--color-soft-ink);
+    padding: 0.8rem 1.1rem;
+    border-bottom: 1px solid var(--color-border-subtle);
+  }
+
+  .tag {
+    font-family: var(--font-mono);
+    font-size: 0.58rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    padding: 0.14em 0.5em;
+    background: var(--color-signal-green);
+    color: var(--color-paper);
+    border-radius: 1px;
+  }
+  .tag.ghost {
+    background: transparent;
+    border: 1px solid var(--color-border-strong);
+    color: var(--color-soft-ink);
+  }
+
+  .glow-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--color-signal-green);
+    box-shadow: 0 0 8px var(--color-signal-green);
+    flex-shrink: 0;
+  }
+
+  /* Ticker tape — track holds two identical halves; sliding 50% loops seamlessly */
+  .ticker-wrap {
+    overflow: hidden;
+  }
+  .ticker-track {
+    display: inline-flex;
+    white-space: nowrap;
+    width: max-content;
+    animation: ticker-scroll 45s linear infinite;
+  }
+  .ticker-wrap:hover .ticker-track {
+    animation-play-state: paused;
+  }
+  @keyframes ticker-scroll {
+    to { transform: translateX(-50%); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .ticker-track { animation: none; }
+  }
+
+  .cursor-blink {
+    display: inline-block;
+    width: 8px;
+    height: 14px;
+    background: var(--color-signal-green);
+    animation: blink 1s steps(1) infinite;
+    vertical-align: middle;
+    box-shadow: 0 0 10px var(--green-glow);
+  }
+  @keyframes blink { 50% { opacity: 0; } }
+
   .content-container {
     width: 100%;
     max-width: 1920px;
@@ -149,7 +241,6 @@ h1, h2, h3, h4, h5, h6 {
   }
 }
 
-/* Clean Tables */
 .table-container {
   width: 100%;
   overflow-x: auto;
@@ -167,10 +258,11 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 .data-table th {
-  font-size: 0.75rem;
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--color-olive);
+  letter-spacing: 0.16em;
+  color: var(--color-faint);
   font-weight: 600;
 }
 
@@ -179,18 +271,18 @@ h1, h2, h3, h4, h5, h6 {
     display: block;
     width: 100%;
   }
-  
+
   .responsive-table thead {
-    display: none; /* hide headers on mobile */
+    display: none;
   }
-  
+
   .responsive-table tr {
     margin-bottom: 1rem;
     border: 1px solid var(--color-border-subtle);
-    border-radius: 4px;
-    background-color: #fff;
+    border-radius: 2px;
+    background-color: var(--color-panel);
   }
-  
+
   .responsive-table td {
     border-bottom: 1px solid var(--color-border-subtle);
     padding: 1rem;
@@ -198,11 +290,11 @@ h1, h2, h3, h4, h5, h6 {
     padding-left: 40%;
     text-align: right;
   }
-  
+
   .responsive-table td:last-child {
     border-bottom: 0;
   }
-  
+
   .responsive-table td::before {
     content: attr(data-label);
     position: absolute;
@@ -211,9 +303,10 @@ h1, h2, h3, h4, h5, h6 {
     padding-right: 10px;
     white-space: nowrap;
     text-align: left;
-    font-size: 0.75rem;
+    font-size: 0.62rem;
     text-transform: uppercase;
     font-weight: 600;
-    color: var(--color-olive);
+    color: var(--color-faint);
+    font-family: var(--font-mono);
   }
 }

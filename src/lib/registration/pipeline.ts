@@ -1,70 +1,9 @@
-import dns from 'dns'
-import { promisify } from 'util'
 import { URL } from 'url'
 import { createClient } from '@/utils/supabase/server'
+import { embedDocuments, serializeVector } from '@/lib/ai/embeddings'
+import { safeFetch } from '@/lib/net/safe-fetch'
+import { resolveOwningIdentity } from '@/lib/verification/verify'
 import crypto from 'crypto'
-
-const lookupAsync = promisify(dns.lookup)
-
-// SSRF Protection: Check if IP is private
-function isPrivateIP(ip: string): boolean {
-  // IPv4 private ranges
-  const parts = ip.split('.').map(Number)
-  if (parts.length === 4) {
-    if (parts[0] === 10) return true
-    if (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31) return true
-    if (parts[0] === 192 && parts[1] === 168) return true
-    if (parts[0] === 127) return true // localhost
-    if (parts[0] === 169 && parts[1] === 254) return true // link-local
-  }
-  
-  // Basic IPv6 check
-  if (ip.includes(':')) {
-    if (ip === '::1') return true // localhost
-    if (ip.toLowerCase().startsWith('fc') || ip.toLowerCase().startsWith('fd')) return true // Unique local
-    if (ip.toLowerCase().startsWith('fe80')) return true // Link-local
-  }
-  
-  return false
-}
-
-// Fetch with redirect limit and SSRF protection
-async function safeFetch(targetUrl: string, maxRedirects = 5): Promise<Response> {
-  let currentUrl = targetUrl
-  let redirects = 0
-
-  while (redirects < maxRedirects) {
-    const parsedUrl = new URL(currentUrl)
-    
-    // Only allow http and https
-    if (parsedUrl.protocol !== 'http:' && parsedUrl.protocol !== 'https:') {
-      throw new Error('Invalid protocol')
-    }
-
-    // SSRF Check
-    const { address } = await lookupAsync(parsedUrl.hostname)
-    if (isPrivateIP(address)) {
-      throw new Error(`Access to private IP ${address} is blocked`)
-    }
-
-    const response = await fetch(currentUrl, {
-      redirect: 'manual', // handle manually to check intermediate URLs for SSRF
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-      }
-    })
-
-    if (response.status >= 300 && response.status < 400 && response.headers.has('location')) {
-      const location = response.headers.get('location')!
-      currentUrl = new URL(location, currentUrl).toString()
-      redirects++
-    } else {
-      return response
-    }
-  }
-
-  throw new Error('Too many redirects')
-}
 
 function extractMetadata(html: string) {
   // Extremely rudimentary metadata extraction regex for demonstration
@@ -90,8 +29,15 @@ export async function registerArticle(targetUrl: string, creatorId: string, pric
     // 1. Normalize URL
     const normalizedUrl = new URL(targetUrl).toString()
 
+    // 1b. Ownership gate — only the verified owner of this domain/handle may
+    // register content from it. No source row is created without a match.
+    const ownership = await resolveOwningIdentity(normalizedUrl, creatorId, supabase)
+    if (!ownership.allowed) {
+      throw new Error(ownership.reason || 'You have not verified ownership of this source.')
+    }
+
     // 2. Try standard fetch first (with SSRF protection)
-    let response = await safeFetch(normalizedUrl).catch(() => null)
+    const response = await safeFetch(normalizedUrl).catch(() => null)
     let title = 'Untitled'
     let readableText = ''
 
@@ -191,14 +137,26 @@ export async function registerArticle(targetUrl: string, creatorId: string, pric
 
     // 6. Chunking (naive for now)
     const chunks = readableText.match(/.{1,1000}/g) || []
-    
-    // Insert chunks without embeddings for now
+
+    // Embed chunks for vector retrieval. If the embedding API is unavailable,
+    // still register the source — the agent falls back to document-order chunks.
+    let embeddings: number[][] | null = null
     if (chunks.length > 0) {
-      const chunkInserts = chunks.map(chunk => ({
+      try {
+        embeddings = await embedDocuments(chunks)
+      } catch (embedError: any) {
+        console.warn(`Embedding failed for ${normalizedUrl}, storing chunks without vectors:`, embedError.message)
+      }
+    }
+
+    // Insert chunks
+    if (chunks.length > 0) {
+      const chunkInserts = chunks.map((chunk, i) => ({
         source_id: sourceId,
-        chunk_text: chunk
+        chunk_text: chunk,
+        ...(embeddings ? { embedding: serializeVector(embeddings[i]) } : {})
       }))
-      
+
       await supabase.from('source_chunks').insert(chunkInserts)
     }
 

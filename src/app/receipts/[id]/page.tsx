@@ -23,7 +23,7 @@ export default async function ReceiptPage({ params }: { params: { id: string } }
 
   return (
     <div className="flex-1 flex flex-col pt-12 px-8 max-w-4xl mx-auto w-full">
-      <div className="mb-12 border-b border-thin-line pb-8">
+      <div className="mb-12 border-b border-[var(--color-border-subtle)] pb-8">
         <h1 className="text-4xl font-serif mb-4">Citation Receipt</h1>
         <p className="text-lg opacity-80 font-mono">
           ID: {auth.id}
@@ -31,7 +31,7 @@ export default async function ReceiptPage({ params }: { params: { id: string } }
       </div>
 
       <div className="grid md:grid-cols-2 gap-8 mb-12">
-        <div className="bg-white border border-thin-line p-6 shadow-sm">
+        <div className="bg-[var(--color-panel)] border border-[var(--color-border-subtle)] p-6 ">
           <h2 className="text-xs font-mono uppercase tracking-widest opacity-60 mb-4">Payment Details</h2>
           <div className="space-y-4 font-mono text-sm">
             <div>
@@ -46,7 +46,7 @@ export default async function ReceiptPage({ params }: { params: { id: string } }
             </div>
             <div>
               <span className="opacity-60 block">Authorization Payload:</span>
-              <span className="break-all text-xs block bg-warm-paper p-2 mt-1 border border-thin-line">
+              <span className="break-all text-xs block bg-[var(--color-paper)] p-2 mt-1 border border-[var(--color-border-subtle)]">
                 {auth.authorization_payload}
               </span>
             </div>
@@ -59,7 +59,7 @@ export default async function ReceiptPage({ params }: { params: { id: string } }
           </div>
         </div>
 
-        <div className="bg-white border border-thin-line p-6 shadow-sm">
+        <div className="bg-[var(--color-panel)] border border-[var(--color-border-subtle)] p-6 ">
           <h2 className="text-xs font-mono uppercase tracking-widest opacity-60 mb-4">Cited Intellectual Property</h2>
           <div className="space-y-4 font-mono text-sm">
             <div>
@@ -68,7 +68,7 @@ export default async function ReceiptPage({ params }: { params: { id: string } }
             </div>
             <div>
               <span className="opacity-60 block">URL:</span>
-              <a href={source?.url} target="_blank" rel="noreferrer" className="text-deep-ink underline break-all hover:text-signal-green transition-colors">
+              <a href={source?.url} target="_blank" rel="noreferrer" className="text-[var(--color-ink)] underline break-all hover:text-signal-green transition-colors">
                 {source?.url}
               </a>
             </div>

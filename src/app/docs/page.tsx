@@ -51,7 +51,7 @@ export default function DocsPage() {
           </div>
           <div className="space-y-8">
             
-            <div className="bg-white p-6 border border-[var(--color-border-subtle)] rounded shadow-sm">
+            <div className="bg-[var(--color-panel)] p-6 border border-[var(--color-border-subtle)] rounded shadow-sm">
               <h3 className="text-xl font-bold mb-3 flex items-center gap-2">
                 <Wallet className="text-[var(--color-signal-green)]" size={20} />
                 1. Connect a Web3 Wallet (No Seed Phrase Needed)
@@ -67,7 +67,7 @@ export default function DocsPage() {
               </ul>
             </div>
 
-            <div className="bg-white p-6 border border-[var(--color-border-subtle)] rounded shadow-sm">
+            <div className="bg-[var(--color-panel)] p-6 border border-[var(--color-border-subtle)] rounded shadow-sm">
               <h3 className="text-xl font-bold mb-3 flex items-center gap-2">
                 <Droplet className="text-blue-500" size={20} />
                 2. Get Testnet USDC
@@ -83,7 +83,7 @@ export default function DocsPage() {
               </ul>
             </div>
 
-            <div className="bg-white p-6 border border-[var(--color-border-subtle)] rounded shadow-sm">
+            <div className="bg-[var(--color-panel)] p-6 border border-[var(--color-border-subtle)] rounded shadow-sm">
               <h3 className="text-xl font-bold mb-3 flex items-center gap-2">
                 <Search className="text-[var(--color-ink)]" size={20} />
                 3. Ask the AI

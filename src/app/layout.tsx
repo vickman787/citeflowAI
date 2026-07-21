@@ -1,28 +1,26 @@
 import type { Metadata } from "next";
 import { validateEnv } from "@/lib/env";
-import { Merriweather, Inter, JetBrains_Mono } from "next/font/google";
+import { IBM_Plex_Sans, IBM_Plex_Mono } from "next/font/google";
 import { Navigation } from "@/components/Navigation";
+import StatsTicker from "@/components/StatsTicker";
+import { getNetworkStats } from "@/lib/stats";
 import "./globals.css";
 
-const serif = Merriweather({
-  weight: ["300", "400", "700"],
-  variable: "--font-serif",
-  subsets: ["latin"],
-});
-
-const sans = Inter({
+const sans = IBM_Plex_Sans({
+  weight: ["400", "500", "600", "700"],
   variable: "--font-sans",
   subsets: ["latin"],
 });
 
-const mono = JetBrains_Mono({
+const mono = IBM_Plex_Mono({
+  weight: ["400", "500", "600", "700"],
   variable: "--font-mono",
   subsets: ["latin"],
 });
 
 export const metadata: Metadata = {
-  title: "CiteFlowAI | Arc Testnet",
-  description: "Editorial research terminal powered by Arc Testnet nanopayments.",
+  title: "citeflow_ai | Arc Testnet",
+  description: "The research terminal that pays its sources. USDC nanopayments per citation, settled on Arc Testnet.",
 };
 
 import { createClient } from "@/utils/supabase/server";
@@ -34,11 +32,12 @@ export default async function RootLayout({
 }>) {
   const supabase = await createClient();
   const { data } = await supabase.auth.getUser();
+  const stats = await getNetworkStats().catch(() => null);
 
   return (
     <html
       lang="en"
-      className={`${serif.variable} ${sans.variable} ${mono.variable} h-full antialiased`}
+      className={`${sans.variable} ${mono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col font-sans bg-[var(--color-paper)] text-[var(--color-ink)]">
         {(() => {
@@ -51,11 +50,11 @@ export default async function RootLayout({
                     Setup Required
                   </h1>
                   <p className="text-lg mb-6 text-[var(--color-soft-ink)]">
-                    The application is missing critical environment variables. Please configure the following in your <code className="text-[var(--color-olive)] font-mono bg-black/5 px-2 py-1 rounded">.env.local</code> file:
+                    The application is missing critical environment variables. Please configure the following in your <code className="text-[var(--color-olive)] font-mono bg-[var(--color-panel-deep)] px-2 py-1 rounded">.env.local</code> file:
                   </p>
                   <ul className="space-y-3 mb-8">
                     {env.errors.map((err: string) => (
-                      <li key={err} className="font-mono text-sm text-[var(--color-rust)] bg-black/5 p-3 rounded border border-[var(--color-border-subtle)]">
+                      <li key={err} className="font-mono text-sm text-[var(--color-rust)] bg-[var(--color-panel-deep)] p-3 rounded border border-[var(--color-border-subtle)]">
                         {err}
                       </li>
                     ))}
@@ -70,12 +69,21 @@ export default async function RootLayout({
 
           return (
             <>
-              {/* Persistent ARC TESTNET indicator */}
-              <div className="w-full bg-[var(--color-ink)] text-center py-2 text-xs font-mono font-medium uppercase tracking-widest flex items-center justify-center gap-2">
-                <div className="w-2 h-2 rounded-full bg-[var(--color-signal-green)]"></div>
-                <span className="text-[var(--color-paper)]">LIVE ON ARC TESTNET</span>
-              </div>
-              
+              {/* Ticker tape — live network stats scrolling across every page */}
+              {stats ? (
+                <StatsTicker stats={stats} />
+              ) : (
+                <div className="w-full border-b border-[var(--color-border-subtle)] font-mono text-[0.62rem] uppercase tracking-[0.12em] text-[var(--color-soft-ink)]">
+                  <div className="content-container flex items-center justify-between py-2">
+                    <span className="flex items-center gap-2">
+                      <span className="glow-dot"></span>
+                      <span className="text-[var(--color-signal-green)]">ARC-TESTNET · LIVE</span>
+                    </span>
+                    <span>CIRCLE W3S</span>
+                  </div>
+                </div>
+              )}
+
               <Navigation initialUser={data?.user} />
 
               <div className="flex-1 flex flex-col">

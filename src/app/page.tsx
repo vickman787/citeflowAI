@@ -1,5 +1,7 @@
 import Link from 'next/link'
 import { createClient } from '@/utils/supabase/server'
+import StatCounter from '@/components/StatCounter'
+import { getNetworkStats } from '@/lib/stats'
 
 // Simple time formatter
 function timeAgo(dateString: string) {
@@ -37,28 +39,34 @@ export default async function LandingPage() {
 
   const hasLiveActivity = recentPayments && recentPayments.length > 0
 
+  // Network stats — real numbers from the ledger (shared with the ticker)
+  const { answersServed, paidToCreators, avgAnswerCost, registeredSources } = await getNetworkStats()
+
   return (
     <div className="flex-1 flex flex-col pt-12 md:pt-24 section-spacing content-container">
       <div className="flex flex-col lg:flex-row justify-between items-center lg:items-start gap-16 lg:gap-8 w-full">
         
-        {/* Left: Editorial Copy */}
+        {/* Left: Hero copy */}
         <section className="flex flex-col max-w-[620px]">
-          <h1 className="text-5xl md:text-6xl lg:text-7xl font-serif font-bold leading-[1.1] mb-6 text-[var(--color-ink)]">
-            Sources deserve<br />a share.
+          <div className="font-mono text-xs text-[var(--color-faint)] mb-4">
+            <span className="text-[var(--color-signal-green)] font-bold">~/citeflow</span> $ init --pay-per-citation
+          </div>
+          <h1 className="font-mono font-semibold text-3xl md:text-4xl lg:text-[2.6rem] leading-[1.15] tracking-tight mb-5 text-[var(--color-ink)]">
+            Every citation <span className="text-[var(--color-signal-green)]">pays its author</span>.
           </h1>
-          <p className="text-lg md:text-xl font-sans text-[var(--color-soft-ink)] mb-10 leading-relaxed">
-            CiteFlowAI is an editorial research terminal powered by autonomous AI. When the agent uses your registered work to synthesize an answer, you receive instant nanopayments on the Arc Testnet.
+          <p className="text-base md:text-lg font-sans text-[var(--color-soft-ink)] mb-9 leading-relaxed">
+            Ask a question, watch the agent read the registered corpus, and see USDC land in creators&apos; wallets the moment their work gets cited. No subscriptions, no scraping — just receipts.
           </p>
-          
+
           <div className="flex flex-col sm:flex-row gap-4">
-            <Link 
-              href="/research" 
+            <Link
+              href="/research"
               className="btn btn-primary"
             >
               Start researching
             </Link>
-            <Link 
-              href="/register-article" 
+            <Link
+              href="/register-article"
               className="btn btn-secondary"
             >
               Register your work
@@ -69,11 +77,11 @@ export default async function LandingPage() {
         {/* Right: Structural Ledger Representation */}
         <section className="w-full lg:max-w-[480px] lg:ml-auto">
           <div className="card-panel shadow-sm overflow-hidden flex flex-col">
-            <div className="bg-[var(--color-ink)] text-[var(--color-paper)] p-4 flex items-center justify-between border-b border-[var(--color-border-subtle)]">
-              <span className="font-sans font-medium text-sm">Live Citations {totalPaidCitations ? `(${totalPaidCitations})` : ''}</span>
-              <span className="font-mono text-xs text-[var(--color-signal-green)] bg-[var(--color-signal-green)]/10 px-2 py-1 rounded">Arc Testnet</span>
+            <div className="bg-[var(--color-panel-deep)] text-[var(--color-ink)] p-4 flex items-center justify-between border-b border-[var(--color-border-subtle)]">
+              <span className="font-mono font-medium text-sm">Live Citations {totalPaidCitations ? `(${totalPaidCitations})` : ''}</span>
+              <span className="font-mono text-xs text-[var(--color-signal-green)] border border-[var(--color-signal-green)]/40 bg-[var(--color-signal-green)]/10 px-2 py-1 rounded-[2px]">Arc Testnet</span>
             </div>
-            <div className="flex flex-col divide-y divide-[var(--color-border-subtle)] bg-white">
+            <div className="flex flex-col divide-y divide-[var(--color-border-subtle)] bg-[var(--color-panel)]">
               {hasLiveActivity ? (
                 recentPayments.map((payment: any, index: number) => (
                   <div key={payment.authorization_id} className={`p-4 flex items-start justify-between ${index === 2 ? 'opacity-60' : ''}`}>
@@ -109,6 +117,34 @@ export default async function LandingPage() {
           </div>
         </section>
 
+      </div>
+
+      {/* Network stats — live from the ledger */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-5 mt-16 md:mt-24 w-full">
+        <div className="bg-[var(--color-panel-deep)] border border-[var(--color-border-subtle)] rounded-[2px] p-5">
+          <div className="font-mono text-[0.6rem] uppercase tracking-[0.16em] text-[var(--color-faint)]">Answers served</div>
+          <div className="font-mono font-bold text-2xl md:text-3xl mt-2 text-[var(--color-ink)]">
+            <StatCounter value={answersServed || 0} />
+          </div>
+        </div>
+        <div className="bg-[var(--color-panel-deep)] border border-[var(--color-border-subtle)] rounded-[2px] p-5">
+          <div className="font-mono text-[0.6rem] uppercase tracking-[0.16em] text-[var(--color-faint)]">Paid to creators</div>
+          <div className="font-mono font-bold text-2xl md:text-3xl mt-2 text-[var(--color-signal-green)]">
+            <StatCounter value={paidToCreators} prefix="$" decimals={2} />
+          </div>
+        </div>
+        <div className="bg-[var(--color-panel-deep)] border border-[var(--color-border-subtle)] rounded-[2px] p-5">
+          <div className="font-mono text-[0.6rem] uppercase tracking-[0.16em] text-[var(--color-faint)]">Avg answer cost</div>
+          <div className="font-mono font-bold text-2xl md:text-3xl mt-2 text-[var(--color-ink)]">
+            <StatCounter value={avgAnswerCost} prefix="$" decimals={2} />
+          </div>
+        </div>
+        <div className="bg-[var(--color-panel-deep)] border border-[var(--color-border-subtle)] rounded-[2px] p-5">
+          <div className="font-mono text-[0.6rem] uppercase tracking-[0.16em] text-[var(--color-faint)]">Registered sources</div>
+          <div className="font-mono font-bold text-2xl md:text-3xl mt-2 text-[var(--color-ink)]">
+            <StatCounter value={registeredSources || 0} />
+          </div>
+        </div>
       </div>
     </div>
   )
