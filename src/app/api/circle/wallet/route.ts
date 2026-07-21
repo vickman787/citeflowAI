@@ -38,6 +38,12 @@ export async function GET(request: NextRequest) {
     })
 
   } catch (error: any) {
+    // Circle codes 155103/155104/155105: userToken not found / expired / invalid.
+    // Signal the client to drop its stored session rather than treating it as a server fault.
+    const circleCode = error?.code || error?.response?.data?.code
+    if ([155103, 155104, 155105].includes(circleCode)) {
+      return NextResponse.json({ error: 'Wallet session expired', code: 'TOKEN_EXPIRED' }, { status: 401 })
+    }
     console.error('Circle Wallet Fetch Error:', error?.response?.data || error)
     return NextResponse.json({ error: 'Failed to fetch wallet info' }, { status: 500 })
   }
