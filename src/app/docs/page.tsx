@@ -227,11 +227,17 @@ export CITEFLOW_PRIVATE_KEY=0xYOUR_PRIVATE_KEY`}
     "citeflow": {
       "command": "node",
       "args": ["/absolute/path/to/mcp-server/index.mjs"],
-      "env": { "CITEFLOW_PRIVATE_KEY": "0xYOUR_PRIVATE_KEY" }
+      "env": {
+        "CITEFLOW_PRIVATE_KEY": "0xYOUR_PRIVATE_KEY",
+        "CITEFLOW_RESEARCH_URL": "https://citeflowai.xyz/api/agent/research"
+      }
     }
   }
 }`}
               </pre>
+              <p className="text-[var(--color-soft-ink)] mt-2 text-xs">
+                <code className="px-1.5 py-0.5 bg-[var(--color-panel-deep)] rounded">CITEFLOW_RESEARCH_URL</code> is actually optional — it already defaults to this production endpoint — but it&apos;s shown explicitly here so the example is copy-pasteable as-is.
+              </p>
               <p className="text-[var(--color-soft-ink)] mt-4 text-sm">
                 Restart your client and ask it to research something — it calls <code className="px-1.5 py-0.5 bg-[var(--color-panel-deep)] rounded text-sm">citeflow_research</code> on its own when relevant. It even auto-deposits into Gateway the first time it needs to, so there&apos;s no manual funding step beyond getting testnet USDC from the faucet. Full details in <code className="px-1.5 py-0.5 bg-[var(--color-panel-deep)] rounded text-sm">mcp-server/README.md</code>.
               </p>

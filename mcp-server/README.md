@@ -39,12 +39,15 @@ For Claude Desktop or Claude Code, add to your MCP config (e.g. `claude_desktop_
       "command": "node",
       "args": ["/absolute/path/to/mcp-server/index.mjs"],
       "env": {
-        "CITEFLOW_PRIVATE_KEY": "0xYOUR_PRIVATE_KEY"
+        "CITEFLOW_PRIVATE_KEY": "0xYOUR_PRIVATE_KEY",
+        "CITEFLOW_RESEARCH_URL": "https://citeflowai.xyz/api/agent/research"
       }
     }
   }
 }
 ```
+
+`CITEFLOW_RESEARCH_URL` is optional — it already defaults to the production endpoint above — but it's included explicitly so this example is copy-pasteable as-is. Drop it (or point it at `http://localhost:3000/api/agent/research`) if you're testing against a local dev server instead.
 
 Restart your client, then just ask it to research something — it'll call `citeflow_research` on its own when relevant.
 
