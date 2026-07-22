@@ -182,7 +182,18 @@ export default function DocsPage() {
             </div>
 
             <div className="bg-[var(--color-panel)] p-6 border border-[var(--color-border-subtle)] rounded shadow-sm">
-              <h3 className="text-xl font-bold mb-3">Example</h3>
+              <h3 className="text-xl font-bold mb-3">Try it from scratch</h3>
+              <p className="text-[var(--color-soft-ink)] mb-4 text-sm">
+                A complete, standalone example — no CiteFlow code required. Run these in an empty folder:
+              </p>
+              <pre className="bg-[var(--color-panel-deep)] border border-[var(--color-border-subtle)] rounded p-4 overflow-x-auto text-sm font-mono text-[var(--color-ink)]">
+{`mkdir citeflow-test && cd citeflow-test
+npm init -y
+npm install @circle-fin/x402-batching`}
+              </pre>
+              <p className="text-[var(--color-soft-ink)] mt-4 mb-2 text-sm">
+                Save this as <code className="px-1.5 py-0.5 bg-[var(--color-panel-deep)] rounded text-sm">test-x402.mjs</code> in that folder — the <code className="px-1.5 py-0.5 bg-[var(--color-panel-deep)] rounded text-sm">.mjs</code> extension runs it as ESM without needing to edit <code className="px-1.5 py-0.5 bg-[var(--color-panel-deep)] rounded text-sm">package.json</code>:
+              </p>
               <pre className="bg-[var(--color-panel-deep)] border border-[var(--color-border-subtle)] rounded p-4 overflow-x-auto text-sm font-mono text-[var(--color-ink)]">
 {`import { GatewayClient } from '@circle-fin/x402-batching/client'
 
@@ -201,8 +212,12 @@ const { data } = await client.pay(
 console.log(data.answer)            // grounded, cited answer
 console.log(data.purchasedSources)  // which creators just got paid`}
               </pre>
+              <p className="text-[var(--color-soft-ink)] mt-4 mb-2 text-sm">Then run it:</p>
+              <pre className="bg-[var(--color-panel-deep)] border border-[var(--color-border-subtle)] rounded p-4 overflow-x-auto text-sm font-mono text-[var(--color-ink)]">
+{`node test-x402.mjs`}
+              </pre>
               <p className="text-[var(--color-soft-ink)] mt-4 text-sm">
-                Each call is a flat <strong>$0.50 USDC</strong>, settled per-request with no refund — the standard x402 pattern. Citation payments to creators are executed exactly as they are for human researchers, regardless of which side paid.
+                Each call is a fixed <strong>$1.00 USDC</strong> budget. Whatever isn&apos;t spent on citations is refunded back to the paying wallet — the same refund mechanism used for human researchers. Citation payments to creators are executed exactly as they are for human researchers too, regardless of which side paid.
               </p>
             </div>
 
@@ -212,7 +227,7 @@ console.log(data.purchasedSources)  // which creators just got paid`}
                 Even easier: MCP integration
               </h3>
               <p className="text-[var(--color-soft-ink)] mb-4">
-                If your agent runs on <a href="https://modelcontextprotocol.io" target="_blank" rel="noopener noreferrer" className="text-[var(--color-signal-green)] underline">MCP</a> (Claude, Cursor, or your own agent framework), you don&apos;t need to write any x402 signing code at all. We publish a small, self-contained MCP server — <code className="px-1.5 py-0.5 bg-[var(--color-panel-deep)] rounded text-sm">mcp-server/</code> in the CiteFlow repo — that exposes the endpoint as a single tool: <code className="px-1.5 py-0.5 bg-[var(--color-panel-deep)] rounded text-sm">citeflow_research</code>. It handles the Gateway deposit, signing, and payment internally; your agent just calls the tool with a question.
+                If your agent runs on <a href="https://modelcontextprotocol.io" target="_blank" rel="noopener noreferrer" className="text-[var(--color-signal-green)] underline">MCP</a> (Claude, Codex, Antigravity, Cursor, or your own agent framework), you don&apos;t need to write any x402 signing code at all. We publish a small, self-contained MCP server — <code className="px-1.5 py-0.5 bg-[var(--color-panel-deep)] rounded text-sm">mcp-server/</code> in the CiteFlow repo — that exposes the endpoint as a single tool: <code className="px-1.5 py-0.5 bg-[var(--color-panel-deep)] rounded text-sm">citeflow_research</code>. It handles the Gateway deposit, signing, and payment internally; your agent just calls the tool with a question.
               </p>
               <p className="text-[var(--color-soft-ink)] mb-4 text-sm">Setup:</p>
               <pre className="bg-[var(--color-panel-deep)] border border-[var(--color-border-subtle)] rounded p-4 overflow-x-auto text-sm font-mono text-[var(--color-ink)]">
@@ -240,6 +255,29 @@ export CITEFLOW_PRIVATE_KEY=0xYOUR_PRIVATE_KEY`}
               </p>
               <p className="text-[var(--color-soft-ink)] mt-4 text-sm">
                 Restart your client and ask it to research something — it calls <code className="px-1.5 py-0.5 bg-[var(--color-panel-deep)] rounded text-sm">citeflow_research</code> on its own when relevant. It even auto-deposits into Gateway the first time it needs to, so there&apos;s no manual funding step beyond getting testnet USDC from the faucet. Full details in <code className="px-1.5 py-0.5 bg-[var(--color-panel-deep)] rounded text-sm">mcp-server/README.md</code>.
+              </p>
+
+              <h4 className="text-base font-bold mt-8 mb-3">Works the same with Codex and Antigravity</h4>
+              <p className="text-[var(--color-soft-ink)] mb-4 text-sm">
+                Same server, same tool — CLI, IDE extension, or desktop app all work. Only the config format and location differ, since each client is a separate, independently-built product.
+              </p>
+
+              <p className="text-[var(--color-soft-ink)] mb-2 text-sm"><strong>Claude Code</strong> (CLI or VS Code extension) uses the identical <code className="px-1.5 py-0.5 bg-[var(--color-panel-deep)] rounded text-sm">.mcp.json</code> format shown above — same file, same shape, whether it&apos;s the desktop app, CLI, or extension.</p>
+
+              <p className="text-[var(--color-soft-ink)] mt-4 mb-2 text-sm"><strong>Codex</strong> (CLI or IDE extension — they share one config) uses TOML, not JSON, at <code className="px-1.5 py-0.5 bg-[var(--color-panel-deep)] rounded text-sm">~/.codex/config.toml</code>:</p>
+              <pre className="bg-[var(--color-panel-deep)] border border-[var(--color-border-subtle)] rounded p-4 overflow-x-auto text-sm font-mono text-[var(--color-ink)]">
+{`[mcp_servers.citeflow]
+command = "node"
+args = ["/absolute/path/to/mcp-server/index.mjs"]
+
+[mcp_servers.citeflow.env]
+CITEFLOW_PRIVATE_KEY = "0xYOUR_PRIVATE_KEY"
+CITEFLOW_RESEARCH_URL = "https://citeflowai.xyz/api/agent/research"`}
+              </pre>
+
+              <p className="text-[var(--color-soft-ink)] mt-4 mb-2 text-sm"><strong>Antigravity</strong> (desktop app or CLI) uses the same JSON shape as Claude, but a different file — global config at <code className="px-1.5 py-0.5 bg-[var(--color-panel-deep)] rounded text-sm">~/.gemini/config/mcp_config.json</code>, or workspace-local at <code className="px-1.5 py-0.5 bg-[var(--color-panel-deep)] rounded text-sm">.agents/mcp_config.json</code>. In the desktop app you can also add it via <strong>MCP Servers → Manage MCP Servers → View raw config</strong> instead of editing the file directly.</p>
+              <p className="text-[var(--color-soft-ink)] mt-2 text-sm bg-[var(--color-rust)]/10 border border-[var(--color-rust)]/30 rounded p-3">
+                <strong>One gotcha specific to Antigravity:</strong> adding the server isn&apos;t enough on its own — it also has a separate permissions screen (<strong>MCP Tools</strong>) where tools must be explicitly allowed before the agent can call them. If the tool connects but calls silently do nothing, add an <strong>Allow</strong> rule for <code className="px-1 py-0.5 bg-[var(--color-panel-deep)] rounded">citeflow_research</code> there.
               </p>
             </div>
 
