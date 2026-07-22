@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { Droplet, FileText, Search, Wallet, Cpu, CheckCircle } from 'lucide-react';
+import { Droplet, FileText, Search, Wallet, Cpu, CheckCircle, Bot } from 'lucide-react';
 
 export default function DocsPage() {
   return (
@@ -117,7 +117,20 @@ export default function DocsPage() {
             </div>
 
             <div className="bg-[var(--color-paper)] p-6 border border-[var(--color-border-subtle)] rounded shadow-sm">
-              <h3 className="text-xl font-bold mb-3">2. Registering Articles</h3>
+              <h3 className="text-xl font-bold mb-3">2. Verify Ownership (Required Before Registering)</h3>
+              <p className="text-[var(--color-soft-ink)] mb-4">
+                Before you can register an article, you must prove you actually control where it lives. This exists so nobody else can register your work and collect the citation payments meant for you — CiteFlowAI will not create a source from a domain or platform handle you haven&apos;t verified, full stop.
+              </p>
+              <ul className="list-disc pl-5 space-y-2 text-[var(--color-ink)]">
+                <li>Open the <strong>Verify Ownership</strong> panel on your Dashboard — it shows a unique verification code tied to your account.</li>
+                <li>Prove control of a <strong>domain</strong> (add a meta tag or a <code className="px-1.5 py-0.5 bg-[var(--color-panel-deep)] rounded text-sm">/.well-known/citeflow.txt</code> file with the code), an <strong>X</strong> account (post the code in a tweet), a <strong>Medium</strong> profile, or a <strong>Substack</strong> — then paste the link back into the panel.</li>
+                <li>Once verified, that identity is <strong>permanently and exclusively yours</strong> — enforced at the database level, not just in the UI. You can then register any article on that domain or handle without repeating this step.</li>
+                <li>You can verify as many domains and platforms as you actually own; there&apos;s no limit.</li>
+              </ul>
+            </div>
+
+            <div className="bg-[var(--color-paper)] p-6 border border-[var(--color-border-subtle)] rounded shadow-sm">
+              <h3 className="text-xl font-bold mb-3">3. Registering Articles</h3>
               <p className="text-[var(--color-soft-ink)] mb-4">
                 Navigate to the <strong>Register Work</strong> page. Here, you can upload the contents of your research, blog posts, or intellectual property.
               </p>
@@ -129,7 +142,7 @@ export default function DocsPage() {
             </div>
 
             <div className="bg-[var(--color-paper)] p-6 border border-[var(--color-border-subtle)] rounded shadow-sm">
-              <h3 className="text-xl font-bold mb-3">3. Tracking Earnings</h3>
+              <h3 className="text-xl font-bold mb-3">4. Tracking Earnings</h3>
               <p className="text-[var(--color-soft-ink)] mb-4">
                 The <strong>Dashboard</strong> provides a live view of your intellectual property. 
               </p>
@@ -142,7 +155,92 @@ export default function DocsPage() {
           </div>
         </section>
 
-        {/* Section 4: Circle Architecture */}
+        {/* Section 4: For Agents & Developers (x402) */}
+        <section className="space-y-6">
+          <div className="flex items-center gap-3 border-b border-[var(--color-border-subtle)] pb-2">
+            <Bot className="text-[var(--color-signal-green)]" size={24} />
+            <h2 className="text-2xl font-serif font-bold text-[var(--color-ink)]">For Agents &amp; Developers (x402 API)</h2>
+          </div>
+          <div className="space-y-8">
+
+            <div className="bg-[var(--color-panel)] p-6 border border-[var(--color-border-subtle)] rounded shadow-sm">
+              <p className="text-[var(--color-soft-ink)] mb-4">
+                CiteFlowAI can also be called directly by other autonomous agents — no browser, no email login, no PIN prompt. The
+                <code className="mx-1 px-1.5 py-0.5 bg-[var(--color-panel-deep)] rounded text-sm">/api/agent/research</code>
+                endpoint speaks the <a href="https://x402.org" target="_blank" rel="noopener noreferrer" className="text-[var(--color-signal-green)] underline">x402</a> protocol: send a request with no payment and it returns an HTTP <strong>402</strong> challenge; retry with a signed, gasless payment authorization and it settles the payment and returns a grounded, cited answer in one round trip.
+              </p>
+            </div>
+
+            <div className="bg-[var(--color-panel)] p-6 border border-[var(--color-border-subtle)] rounded shadow-sm">
+              <h3 className="text-xl font-bold mb-3">What you need</h3>
+              <ul className="list-disc pl-5 space-y-2 text-[var(--color-ink)]">
+                <li>Any standard EVM keypair — this isn&apos;t tied to Circle&apos;s wallet product; a plain private key works.</li>
+                <li>Testnet USDC and a small amount of native gas on <strong>Arc Testnet</strong>, free from the <a href="https://faucet.circle.com" target="_blank" rel="noopener noreferrer" className="text-[var(--color-signal-green)] underline">Circle Faucet</a>.</li>
+                <li>A <strong>one-time on-chain deposit</strong> into Circle&apos;s Gateway Wallet contract. Holding USDC alone isn&apos;t enough — it must be deposited into Gateway before any signed authorization can spend it. This step costs gas; every payment after it is gasless.</li>
+                <li>The <code className="px-1.5 py-0.5 bg-[var(--color-panel-deep)] rounded text-sm">@circle-fin/x402-batching</code> client library (or any client that implements Circle Gateway&apos;s batched signing scheme).</li>
+              </ul>
+            </div>
+
+            <div className="bg-[var(--color-panel)] p-6 border border-[var(--color-border-subtle)] rounded shadow-sm">
+              <h3 className="text-xl font-bold mb-3">Example</h3>
+              <pre className="bg-[var(--color-panel-deep)] border border-[var(--color-border-subtle)] rounded p-4 overflow-x-auto text-sm font-mono text-[var(--color-ink)]">
+{`import { GatewayClient } from '@circle-fin/x402-batching/client'
+
+const client = new GatewayClient({
+  chain: 'arcTestnet',
+  privateKey: '0xYOUR_PRIVATE_KEY',
+})
+
+await client.deposit('1.00') // one-time, funds your Gateway balance
+
+const { data } = await client.pay(
+  'https://citeflowai.xyz/api/agent/research?q=' +
+    encodeURIComponent('your research question here')
+)
+
+console.log(data.answer)            // grounded, cited answer
+console.log(data.purchasedSources)  // which creators just got paid`}
+              </pre>
+              <p className="text-[var(--color-soft-ink)] mt-4 text-sm">
+                Each call is a flat <strong>$0.50 USDC</strong>, settled per-request with no refund — the standard x402 pattern. Citation payments to creators are executed exactly as they are for human researchers, regardless of which side paid.
+              </p>
+            </div>
+
+            <div className="bg-[var(--color-panel)] p-6 border border-[var(--color-signal-green)]/40 rounded shadow-sm">
+              <h3 className="text-xl font-bold mb-3 flex items-center gap-2">
+                <Bot className="text-[var(--color-signal-green)]" size={20} />
+                Even easier: MCP integration
+              </h3>
+              <p className="text-[var(--color-soft-ink)] mb-4">
+                If your agent runs on <a href="https://modelcontextprotocol.io" target="_blank" rel="noopener noreferrer" className="text-[var(--color-signal-green)] underline">MCP</a> (Claude, Cursor, or your own agent framework), you don&apos;t need to write any x402 signing code at all. We publish a small, self-contained MCP server — <code className="px-1.5 py-0.5 bg-[var(--color-panel-deep)] rounded text-sm">mcp-server/</code> in the CiteFlow repo — that exposes the endpoint as a single tool: <code className="px-1.5 py-0.5 bg-[var(--color-panel-deep)] rounded text-sm">citeflow_research</code>. It handles the Gateway deposit, signing, and payment internally; your agent just calls the tool with a question.
+              </p>
+              <p className="text-[var(--color-soft-ink)] mb-4 text-sm">Setup:</p>
+              <pre className="bg-[var(--color-panel-deep)] border border-[var(--color-border-subtle)] rounded p-4 overflow-x-auto text-sm font-mono text-[var(--color-ink)]">
+{`cd mcp-server
+npm install
+export CITEFLOW_PRIVATE_KEY=0xYOUR_PRIVATE_KEY`}
+              </pre>
+              <p className="text-[var(--color-soft-ink)] mt-4 mb-2 text-sm">Then point your MCP client at it, e.g. in Claude Desktop&apos;s config:</p>
+              <pre className="bg-[var(--color-panel-deep)] border border-[var(--color-border-subtle)] rounded p-4 overflow-x-auto text-sm font-mono text-[var(--color-ink)]">
+{`{
+  "mcpServers": {
+    "citeflow": {
+      "command": "node",
+      "args": ["/absolute/path/to/mcp-server/index.mjs"],
+      "env": { "CITEFLOW_PRIVATE_KEY": "0xYOUR_PRIVATE_KEY" }
+    }
+  }
+}`}
+              </pre>
+              <p className="text-[var(--color-soft-ink)] mt-4 text-sm">
+                Restart your client and ask it to research something — it calls <code className="px-1.5 py-0.5 bg-[var(--color-panel-deep)] rounded text-sm">citeflow_research</code> on its own when relevant. It even auto-deposits into Gateway the first time it needs to, so there&apos;s no manual funding step beyond getting testnet USDC from the faucet. Full details in <code className="px-1.5 py-0.5 bg-[var(--color-panel-deep)] rounded text-sm">mcp-server/README.md</code>.
+              </p>
+            </div>
+
+          </div>
+        </section>
+
+        {/* Section 5: Circle Architecture */}
         <section className="space-y-6">
           <div className="flex items-center gap-3 border-b border-[var(--color-border-subtle)] pb-2">
             <CheckCircle className="text-[var(--color-signal-green)]" size={24} />

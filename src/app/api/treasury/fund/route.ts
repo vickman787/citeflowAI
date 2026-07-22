@@ -1,69 +1,50 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { getX402Server } from '@/lib/x402/server'
+import { buildRequestContext } from '@/lib/x402/next-adapter'
 
-// 0.50 USDC = 500,000 units (6 decimals)
-const PROMPT_FEE_USDC = "500000" 
-
+// Real, spec-compliant x402 endpoint — built on @x402/core + Circle's
+// BatchFacilitatorClient, replacing the earlier hand-rolled challenge/settle
+// pair that a genuine x402 client (verified against @circle-fin/x402-batching's
+// own GatewayClient) could not actually complete a payment against.
+//
+// A single GET handles both halves of the flow: no PAYMENT-SIGNATURE header
+// returns the 402 challenge; a request with a valid signed authorization gets
+// verified and settled against Circle's Gateway.
 export async function GET(request: NextRequest) {
-  // Generate the 402 challenge
-  const challenge = {
-    accepts: [
-      {
-        network: "eip155:5042002", // Arc Testnet
-        amount: PROMPT_FEE_USDC,
-        payTo: process.env.AGENT_TREASURY_ADDRESS || "0x933a2405f84c224be1ef373ba16e992e1f459682", // Fallback if missing
-        maxTimeoutSeconds: 604800,
-        extra: { 
-          verifyingContract: "0x0077777d7EBA4688BDeF3E311b846F25870A19B9" // GatewayWalletBatched
-        }
-      }
-    ],
-    resource: "/api/treasury/fund"
+  const server = await getX402Server()
+  const context = await buildRequestContext(request, '/api/treasury/fund')
+  const result = await server.processHTTPRequest(context)
+
+  if (result.type === 'payment-error') {
+    return NextResponse.json(result.response.body ?? {}, {
+      status: result.response.status,
+      headers: result.response.headers,
+    })
   }
 
-  const challengeBase64 = Buffer.from(JSON.stringify(challenge)).toString('base64')
-
-  return new NextResponse('Payment Required', {
-    status: 402,
-    headers: {
-      'PAYMENT-REQUIRED': challengeBase64,
-      'Access-Control-Expose-Headers': 'PAYMENT-REQUIRED'
-    }
-  })
-}
-
-export async function POST(request: NextRequest) {
-  try {
-    const paymentSignatureHeader = request.headers.get('payment-signature')
-    
-    if (!paymentSignatureHeader) {
-      return NextResponse.json({ error: 'Missing payment-signature header' }, { status: 400 })
-    }
-
-    const paymentPayload = JSON.parse(Buffer.from(paymentSignatureHeader, 'base64').toString('utf-8'))
-
-    // Forward the signature to Circle's Facilitator API
-    const facilitatorRes = await fetch("https://gateway-api-testnet.circle.com/v1/x402/settle", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(paymentPayload)
-    })
-
-    if (!facilitatorRes.ok) {
-      const errText = await facilitatorRes.text()
-      console.error("Facilitator error:", errText)
-      return NextResponse.json({ error: `Facilitator settlement failed: ${errText}` }, { status: 400 })
-    }
-
-    const data = await facilitatorRes.json()
-
-    // Succeeded! Return the settlementId
-    return NextResponse.json({
-      success: true,
-      settlementId: data.id || data.settlementId
-    })
-
-  } catch (error: any) {
-    console.error('Fund POST Error:', error)
-    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 })
+  if (result.type === 'no-payment-required') {
+    // Should not happen for this route — it always declares a payment
+    // requirement — but fail loudly rather than silently serving for free.
+    return NextResponse.json({ error: 'Route is missing its payment configuration' }, { status: 500 })
   }
+
+  // payment-verified: the facilitator has already confirmed the signature
+  // and requirements are valid. Settle, then serve the resource.
+  const settlement = await server.processSettlement(
+    result.paymentPayload,
+    result.paymentRequirements,
+    result.declaredExtensions
+  )
+
+  if (!settlement.success) {
+    return NextResponse.json(settlement.response.body ?? { error: settlement.errorReason }, {
+      status: settlement.response.status,
+      headers: settlement.response.headers,
+    })
+  }
+
+  return NextResponse.json(
+    { success: true, transaction: settlement.transaction, network: settlement.network },
+    { headers: settlement.headers }
+  )
 }
