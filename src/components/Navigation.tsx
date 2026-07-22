@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useState, useEffect, useRef } from "react";
 import { Menu, X, LogIn, LogOut, Copy, Check, Droplet, Send, ChevronDown } from "lucide-react";
 import { createClient } from "@/utils/supabase/client";
@@ -29,6 +29,7 @@ export function Navigation({ initialUser }: { initialUser?: any }) {
   const [isWalletMenuOpen, setIsWalletMenuOpen] = useState(false);
   const walletMenuRef = useRef<HTMLDivElement>(null);
   const pathname = usePathname();
+  const router = useRouter();
   const supabase = createClient();
 
   // Close the wallet dropdown on outside click or Escape
@@ -64,8 +65,9 @@ export function Navigation({ initialUser }: { initialUser?: any }) {
       })
       .then(res => {
         if (res.ok) {
-          // Force a full reload to get the new session from the server
-          window.location.reload();
+          // Re-fetch the server-rendered user context (cookies now set) without
+          // a hard reload — avoids the full-page flash/flicker on reconnect.
+          router.refresh();
         } else {
           // Token is invalid/expired, log out locally
           localStorage.removeItem('circle_wallet_address');
@@ -76,7 +78,7 @@ export function Navigation({ initialUser }: { initialUser?: any }) {
       })
       .catch(console.error);
     }
-  }, [initialUser]);
+  }, [initialUser, router]);
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
@@ -398,9 +400,10 @@ export function Navigation({ initialUser }: { initialUser?: any }) {
           localStorage.setItem('circle_user_token', token);
           localStorage.setItem('circle_encryption_key', encKey);
           window.dispatchEvent(new Event('wallet_changed'));
-          // Reload to fetch Supabase user context
-          window.location.reload();
-        }} 
+          // Re-fetch the server-rendered user context (cookies now set) without
+          // a hard reload — avoids the full-page flash/flicker on connect.
+          router.refresh();
+        }}
       />
     </nav>
   );
