@@ -1,45 +1,45 @@
-# CiteFlow AI 🖋️⚡️
+# CiteFlowAI
 
-> **The Decentralized Research Terminal.**
-> Ask a question. Get a grounded answer. Pay the creator instantly.
+> **The research agent that pays its sources.**
+> Ask a question. Get a grounded, cited answer. The creators behind it get paid — in USDC, automatically, the moment the citation happens.
 
-CiteFlow AI is a Web3-native AI research agent built to solve a critical problem in the AI era: **content creators are rarely compensated when autonomous agents scrape and synthesize their work.** 
+CiteFlowAI is a Web3-native AI research agent built to solve a problem every AI product shares: **content creators are rarely compensated when an agent scrapes and synthesizes their work.** A researcher locks a budget, the agent grounds its answer only in registered, verified sources, and every source it actually cites gets paid on the spot — no subscriptions, no ad revenue splits, no invoices.
 
-Built for the **Request for Build (RFB 02): Selling Agent Services via Nanopayments**, CiteFlow AI bypasses traditional SaaS subscriptions entirely. It introduces a two-sided micro-economy where users pay for agent services per-call via Circle User-Controlled Wallets, and the AI autonomously distributes royalties to creators whose intellectual property was utilized.
+CiteFlowAI is payable by humans through the web terminal, and by autonomous agents directly over HTTP via the [x402 payment protocol](https://x402.org) or the bundled [MCP server](mcp-server/README.md) — so Claude, Codex, Antigravity, or any x402-aware client can pay for and run a research session with no login and no API key.
 
-![CiteFlow AI Tech Stack](https://img.shields.io/badge/Next.js-15-black?style=flat&logo=next.js)
+![Next.js](https://img.shields.io/badge/Next.js-16-black?style=flat&logo=next.js)
 ![Supabase](https://img.shields.io/badge/Supabase-Database-3ECF8E?style=flat&logo=supabase)
 ![Circle](https://img.shields.io/badge/Circle-Web3_Services-2B88D8?style=flat)
+![x402](https://img.shields.io/badge/x402-Agent_Payments-orange?style=flat)
 ![Arc Testnet](https://img.shields.io/badge/Network-Arc_Testnet-success?style=flat)
 
 ---
 
-## 🏆 Answering RFB 02: Selling Agent Services via Nanopayments
+## How the money moves
 
-CiteFlow AI captures the essence of RFB 02 by monetizing an agent's work at the micro level through a unique **Pay-Per-Prompt** and **Dynamic Refund** architecture:
-
-1. **User Budget Escrow:** The researcher connects a Circle User-Controlled Wallet. Every time they ask a question, they lock a micro-budget upfront (e.g., `$0.50 USDC`) to authorize the agent. No monthly subscriptions required.
-2. **Metered Citation Payments:** The AI Agent acts as an autonomous treasury. As it researches, it evaluates registered articles. If it explicitly uses a creator's work to ground its answer, it programmatically executes a nanopayment (e.g., `$0.05 USDC`) directly to that creator.
-3. **Micro-Platform Fees:** The protocol takes a small micro-fee (e.g., `$0.20 USDC`) per successful call to cover LLM compute costs and network maintenance.
-4. **Dynamic Pricing via Refunds:** The final price of the agent service is dynamically determined by the complexity of the research. If the query was simple and required zero paid sources, the AI dynamically prices the service at `$0.00` and refunds 100% of the initial budget back to the user's wallet via smart contracts.
+1. **Budget escrow:** The researcher connects a Circle User-Controlled Wallet and locks a budget upfront for the prompt (e.g. `$1.00 USDC`) — one signature, no recurring subscription.
+2. **Metered citation payments:** The agent evaluates registered, ownership-verified sources against the query. Every source it actually cites gets paid — the rest cost nothing.
+3. **Platform fee:** A small percentage of each citation payment covers LLM inference and infrastructure.
+4. **Refund of unspent budget:** Whatever wasn't paid out settles back to the researcher's wallet automatically — a simple query with fewer citations costs less, by construction.
+5. **Agent-native payment (x402):** The same research endpoint is callable by any autonomous agent over HTTP: the agent pays via the x402 protocol (settled through Circle Gateway on Arc), the research runs, and unspent budget is refunded the same way.
 
 ## ✨ Core Features
 
-- **Invisible Web2-to-Web3 Auth (Circle + Supabase):** Seamless email OTP onboarding via Circle Programmable Wallets. The backend securely and invisibly maps the user's Circle Wallet identity (`0x...@citeflow.local`) directly into a Supabase auth session. Users enjoy a frictionless Web2 feel while holding full Web3 custody. No separate passwords required!
-- **Cross-Device Persistent Research History:** The research history seamlessly follows the user. Research sessions and generated AI answers are stored natively in the Supabase backend, perfectly synced with their Circle Wallet identity across any device.
-- **Automated Treasury Mapping:** The moment a user logs in via Circle, their wallet address is auto-mapped into the Supabase database. This entirely removes the need for manual payment configurations, allowing creators to instantly receive nanopayments with zero setup.
-- **Autonomous Treasury Routing:** The backend LLM orchestration loop securely links user sessions to Circle's infrastructure, routing funds between users, creators, and the platform without human intervention.
-- **RAG & Vector Search:** Fast retrieval of registered creator sources using Supabase.
-- **Multi-Model LLM Fallback (Waterfall Architecture):** Primary synthesis via Gemini 2.5 Flash, with automatic rate-limit fallbacks to Claude Haiku via Anthropic API, ensuring enterprise-grade resilience.
-- **Live Ledger Dashboard:** A beautiful, responsive "Paper & Ink" editorial UI that tracks real-time network activity, user budgets, and citation earnings.
+- **Creator ownership verification (hard gate):** Before anyone can register a source, they must prove control of it — domain, X, Medium, or Substack. Enforced by a database constraint, not application logic, so no one can register someone else's work and intercept their payments.
+- **Invisible Web2-to-Web3 auth (Circle + Supabase):** Email + PIN onboarding via Circle Programmable Wallets, no seed phrase. The backend maps the Circle Wallet identity into a Supabase auth session so research history and payouts persist across devices.
+- **RAG via embeddings:** Registered sources are embedded and retrieved by relevance (`src/lib/ai/embeddings.ts`), not keyword match, so citation and payment are tied to what actually grounded the answer.
+- **Multi-model LLM fallback:** Primary synthesis via Gemini 2.5 Flash, with automatic fallback to Claude on rate limits.
+- **Live ledger:** A terminal-themed dashboard showing real-time budgets, citations, and payouts as they settle on-chain.
+- **x402 agent endpoint + MCP server:** `/api/agent/research` is a spec-compliant, agent-payable HTTP 402 endpoint; `mcp-server/` wraps it as an MCP tool (`citeflow_research`) for Claude, Codex, Antigravity, or any MCP-compatible client. See [docs](src/app/docs/page.tsx) and the [MCP server README](mcp-server/README.md) for setup.
 
-## 🛠️ Primitives for Builders (Open Source)
+## 🛠️ Primitives for builders (open source)
 
-If you are a builder looking to integrate autonomous micro-transactions into your AI workflows, CiteFlow AI exposes several highly reusable primitives:
-
-1. **`research-agent.ts`:** A complete LLM orchestration loop that evaluates content relevance, processes transactions dynamically, and enforces strict UUID hallucination-prevention for structured ledger output.
-2. **`circle-api.ts`:** A secure backend wrapper for interacting with Circle's Programmable Wallets API, handling gateway transfers, and signature orchestration.
-3. **`treasury.ts`:** The logic layer managing the Pay-Per-Prompt micro-escrow and refund distribution system.
+- **`src/lib/ai/research-agent.ts`** — the LLM orchestration loop: evaluates source relevance, decides what to cite, and drives the payment ledger.
+- **`src/lib/ai/embeddings.ts`** — embedding generation and similarity retrieval over registered sources.
+- **`src/lib/payments/circle-api.ts`** / **`src/lib/payments/treasury.ts`** — Circle Wallets integration and the pay-per-prompt escrow/refund logic for the human (non-agent) flow.
+- **`src/lib/x402/server.ts`** / **`src/lib/x402/next-adapter.ts`** — the x402 resource server (via `@x402/core` + `@circle-fin/x402-batching`) and its Next.js route adapter, backing the agent-payable research endpoint.
+- **`src/lib/verification/`** — domain/social ownership verification used to gate source registration.
+- **`mcp-server/`** — standalone MCP server exposing CiteFlowAI research as a tool any MCP client can call.
 
 ---
 
@@ -47,8 +47,8 @@ If you are a builder looking to integrate autonomous micro-transactions into you
 
 ### Prerequisites
 - Node.js (v18+)
-- A Supabase Project
-- A Circle Web3 Services API Key (User-Controlled & Developer-Controlled Wallets)
+- A Supabase project
+- A Circle Web3 Services API key (User-Controlled & Developer-Controlled Wallets)
 
 ### Environment Variables
 Rename `.env.example` to `.env.local` and fill in your keys:
@@ -84,6 +84,8 @@ npm run dev
 ```
 
 3. Open [http://localhost:3000](http://localhost:3000) with your browser to see the live app.
+
+For agent/MCP integration, see [`src/app/docs/page.tsx`](src/app/docs/page.tsx) and [`mcp-server/README.md`](mcp-server/README.md).
 
 ## 📄 License
 MIT License
