@@ -123,7 +123,7 @@ export default function DocsPage() {
               </p>
               <ul className="list-disc pl-5 space-y-2 text-[var(--color-ink)]">
                 <li>Open the <strong>Verify Ownership</strong> panel on your Dashboard — it shows a unique verification code tied to your account.</li>
-                <li>Prove control of a <strong>domain</strong> (add a meta tag or a <code className="px-1.5 py-0.5 bg-[var(--color-panel-deep)] rounded text-sm">/.well-known/citeflow.txt</code> file with the code), an <strong>X</strong> account (post the code in a tweet), a <strong>Medium</strong> profile, or a <strong>Substack</strong> — then paste the link back into the panel.</li>
+                <li>Prove control of a <strong>domain</strong> (add a meta tag or a <code className="px-1.5 py-0.5 bg-[var(--color-panel-deep)] rounded text-sm">/.well-known/citeflow.txt</code> file with the code), an <strong>X</strong> account (post the code in a tweet), a <strong>Medium</strong> profile, a <strong>Substack</strong>, or an <strong>Arc House</strong> account (publish the code in a post on a public board) — then paste the link back into the panel.</li>
                 <li>Once verified, that identity is <strong>permanently and exclusively yours</strong> — enforced at the database level, not just in the UI. You can then register any article on that domain or handle without repeating this step.</li>
                 <li>You can verify as many domains and platforms as you actually own; there&apos;s no limit.</li>
               </ul>

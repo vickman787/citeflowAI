@@ -1,6 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { safeFetch } from '@/lib/net/safe-fetch'
-import { resolveByStructure, resolveXPost, isXUrl, type Platform } from './resolve'
+import { resolveByStructure, resolveXPost, isXUrl, resolveArcPost, isArcUrl, type Platform } from './resolve'
 
 // Deterministic per-creator code. Not a one-time secret like an OTP — it's
 // a durable proof token (same idea as a domain TXT record), checked live
@@ -110,6 +110,24 @@ async function verifySubstack(proofUrl: string, code: string): Promise<VerifyRes
   return { platform: 'substack', identifier: resolved.identifier, proofUrl }
 }
 
+// Arc House has no publicly readable profile or bio, so unlike Medium/Substack
+// the code can only be proven from a published post. One post is enough for
+// good: the identity is the author, so every post they've written becomes
+// registerable off a single proof.
+async function verifyArc(proofUrl: string, code: string): Promise<VerifyResult> {
+  if (!isArcUrl(proofUrl)) {
+    throw new Error('That does not look like an Arc House post URL (community.arc.io).')
+  }
+
+  const { authorId, text, canonicalUrl } = await resolveArcPost(proofUrl)
+
+  if (!text.includes(code)) {
+    throw new Error(`Verification code not found in that post. Make sure the post contains "${code}" exactly, then paste the link to it.`)
+  }
+
+  return { platform: 'arc', identifier: authorId, proofUrl: canonicalUrl }
+}
+
 export async function verifyIdentity(platform: Platform, proofUrl: string, creatorId: string): Promise<VerifyResult> {
   const code = generateVerificationCode(creatorId)
   switch (platform) {
@@ -117,6 +135,7 @@ export async function verifyIdentity(platform: Platform, proofUrl: string, creat
     case 'x': return verifyX(proofUrl, code)
     case 'medium': return verifyMedium(proofUrl, code)
     case 'substack': return verifySubstack(proofUrl, code)
+    case 'arc': return verifyArc(proofUrl, code)
   }
 }
 
@@ -174,6 +193,15 @@ export async function resolveOwningIdentity(
       resolved = { platform: 'x', identifier: authorHandle }
     } catch (e: any) {
       return { allowed: false, reason: `Could not verify ownership of this X post: ${e.message}` }
+    }
+  }
+
+  if (!resolved && isArcUrl(targetUrl)) {
+    try {
+      const { authorId } = await resolveArcPost(targetUrl)
+      resolved = { platform: 'arc', identifier: authorId }
+    } catch (e: any) {
+      return { allowed: false, reason: `Could not verify ownership of this Arc House post: ${e.message}` }
     }
   }
 
