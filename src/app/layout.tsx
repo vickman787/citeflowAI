@@ -89,6 +89,20 @@ export default async function RootLayout({
               <div className="flex-1 flex flex-col">
                 {children}
               </div>
+
+              {/* Keepedia ownership verification link — remove once verified */}
+              <footer className="w-full border-t border-[var(--color-border-subtle)] font-mono text-[0.62rem] uppercase tracking-[0.12em] text-[var(--color-soft-ink)]">
+                <div className="content-container flex items-center justify-center py-3">
+                  <a
+                    href="https://keep.coffee/keepedia/citeflow-ai"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="hover:text-[var(--color-signal-green)] transition-colors"
+                  >
+                    Listed on Keepedia
+                  </a>
+                </div>
+              </footer>
             </>
           );
         })()}
