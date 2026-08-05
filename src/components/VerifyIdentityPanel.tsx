@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { Check, Copy, ShieldCheck, Loader2 } from 'lucide-react'
 
-type Platform = 'domain' | 'x' | 'medium' | 'substack'
+type Platform = 'domain' | 'x' | 'medium' | 'substack' | 'arc'
 
 interface Identity {
   platform: Platform
@@ -17,6 +17,7 @@ const PLATFORM_LABEL: Record<Platform, string> = {
   x: 'X (Twitter)',
   medium: 'Medium',
   substack: 'Substack',
+  arc: 'Arc House',
 }
 
 const PLATFORM_INSTRUCTIONS: Record<Platform, (code: string) => string> = {
@@ -28,6 +29,8 @@ const PLATFORM_INSTRUCTIONS: Record<Platform, (code: string) => string> = {
     `Add "${code}" to your Medium bio, or publish a post containing it. Then paste your profile (medium.com/@you) or post URL below.`,
   substack: (code) =>
     `Publish a post (or add to your About page) containing "${code}" on your Substack. Then paste that URL below.`,
+  arc: (code) =>
+    `Publish a post in a public Arc House board containing "${code}" anywhere in it, then paste the link to that post below. Arc House bios aren't public, so a post is the only way to prove authorship. You only need to do this once: it verifies your account, so every post you've written becomes registerable.`,
 }
 
 export default function VerifyIdentityPanel() {
@@ -187,6 +190,7 @@ export default function VerifyIdentityPanel() {
             platform === 'domain' ? 'https://your-domain.com' :
             platform === 'x' ? 'https://x.com/you/status/...' :
             platform === 'medium' ? 'https://medium.com/@you/...' :
+            platform === 'arc' ? 'https://community.arc.io/public/forum/boards/.../posts/...' :
             'https://you.substack.com/p/...'
           }
           className="input-field flex-1 font-mono text-sm"
