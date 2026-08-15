@@ -285,6 +285,8 @@ export async function runResearchAgent(
     }
     
     CRITICAL: The 'citationsUsed' array MUST contain ONLY the exact raw UUID strings of the sources provided above (e.g. "a1b2c3d4-..."). Do not use titles, "Source 1", or any other format. If you use a source, you MUST include its exact ID in this array so the creator can be compensated.
+
+    CRITICAL: The 'answer' text itself must read as plain, natural prose — do NOT append inline citation markers like "[a1b2c3d4-...]" or "[Source 1]" to it. Citations are tracked exclusively via the 'citationsUsed' array; the answer text should contain no bracketed IDs, footnote numbers, or source references at all.
   `
 
   const finalOutput = await callLLM(finalPrompt, finalOutputSchema, onProgress)
