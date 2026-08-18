@@ -212,6 +212,9 @@ const { data } = await client.pay(
 console.log(data.answer)            // grounded, cited answer
 console.log(data.purchasedSources)  // which creators just got paid`}
               </pre>
+              <p className="text-[var(--color-soft-ink)] mt-4 mb-2 text-sm">
+                Replace <code className="px-1.5 py-0.5 bg-[var(--color-panel-deep)] rounded text-sm">0xYOUR_PRIVATE_KEY</code> and <code className="px-1.5 py-0.5 bg-[var(--color-panel-deep)] rounded text-sm">&apos;your research question here&apos;</code> with your own values first — the script will still run and settle payment even if you forget, it just comes back with a response explaining no real question was asked, instead of an error.
+              </p>
               <p className="text-[var(--color-soft-ink)] mt-4 mb-2 text-sm">Then run it:</p>
               <pre className="bg-[var(--color-panel-deep)] border border-[var(--color-border-subtle)] rounded p-4 overflow-x-auto text-sm font-mono text-[var(--color-ink)]">
 {`node test-x402.mjs`}
