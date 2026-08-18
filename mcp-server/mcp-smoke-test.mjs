@@ -34,10 +34,14 @@ for (const t of tools) console.log(`      - ${t.name}: ${t.description.slice(0, 
 console.log('')
 console.log('[2/2] calling citeflow_research over MCP protocol...')
 const t0 = Date.now()
-const result = await client.callTool({
-  name: 'citeflow_research',
-  arguments: { query: 'What does CiteFlowAI pay creators for?' },
-})
+const result = await client.callTool(
+  {
+    name: 'citeflow_research',
+    arguments: { query: 'What does CiteFlowAI pay creators for?' },
+  },
+  undefined,
+  { timeout: 180_000 } // settlement can take 60-100s+; the SDK's 60s default is too tight
+)
 const ms = Date.now() - t0
 
 console.log(`      ✓ tool call completed in ${ms}ms, isError=${!!result.isError}`)

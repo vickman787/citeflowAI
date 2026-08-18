@@ -200,6 +200,7 @@ npm install @circle-fin/x402-batching`}
 const client = new GatewayClient({
   chain: 'arcTestnet',
   privateKey: '0xYOUR_PRIVATE_KEY',
+  rpcUrl: 'https://rpc.drpc.testnet.arc.network', // the default RPC is rate-limited
 })
 
 await client.deposit('1.00') // one-time, funds your Gateway balance
@@ -230,7 +231,10 @@ console.log(data.purchasedSources)  // which creators just got paid`}
                 Even easier: MCP integration
               </h3>
               <p className="text-[var(--color-soft-ink)] mb-4">
-                If your agent runs on <a href="https://modelcontextprotocol.io" target="_blank" rel="noopener noreferrer" className="text-[var(--color-signal-green)] underline">MCP</a> (Claude, Codex, Antigravity, Cursor, or your own agent framework), you don&apos;t need to write any x402 signing code at all. We publish a small, self-contained MCP server — <code className="px-1.5 py-0.5 bg-[var(--color-panel-deep)] rounded text-sm">mcp-server/</code> in the CiteFlow repo — that exposes the endpoint as a single tool: <code className="px-1.5 py-0.5 bg-[var(--color-panel-deep)] rounded text-sm">citeflow_research</code>. It handles the Gateway deposit, signing, and payment internally; your agent just calls the tool with a question.
+                If your agent runs on <a href="https://modelcontextprotocol.io" target="_blank" rel="noopener noreferrer" className="text-[var(--color-signal-green)] underline">MCP</a> (Claude, Codex, Antigravity, OpenCode, Cursor, or your own agent framework), you don&apos;t need to write any x402 signing code at all. We publish a small, self-contained MCP server — <code className="px-1.5 py-0.5 bg-[var(--color-panel-deep)] rounded text-sm">mcp-server/</code> in the CiteFlow repo — that exposes the endpoint as a single tool: <code className="px-1.5 py-0.5 bg-[var(--color-panel-deep)] rounded text-sm">citeflow_research</code>. It handles the Gateway deposit, signing, and payment internally; your agent just calls the tool with a question.
+              </p>
+              <p className="text-[var(--color-soft-ink)] mt-2 mb-4 text-sm bg-[var(--color-rust)]/10 border border-[var(--color-rust)]/30 rounded p-3">
+                <strong>Set a longer tool-call timeout.</strong> A real call settles an on-chain payment and typically takes 60–100+ seconds. Most MCP clients default to a 60-second tool-call timeout, right at the edge of that, so calls will intermittently fail with a timeout error even though nothing is wrong. Set your client&apos;s per-server timeout to at least 3 minutes; the exact field is shown for each client below.
               </p>
               <p className="text-[var(--color-soft-ink)] mb-4 text-sm">Setup:</p>
               <pre className="bg-[var(--color-panel-deep)] border border-[var(--color-border-subtle)] rounded p-4 overflow-x-auto text-sm font-mono text-[var(--color-ink)]">
@@ -246,6 +250,7 @@ export CITEFLOW_PRIVATE_KEY=0xYOUR_PRIVATE_KEY`}
     "citeflow": {
       "command": "node",
       "args": ["/absolute/path/to/mcp-server/index.mjs"],
+      "timeout": 180000,
       "env": {
         "CITEFLOW_PRIVATE_KEY": "0xYOUR_PRIVATE_KEY",
         "CITEFLOW_RESEARCH_URL": "https://citeflowai.xyz/api/agent/research"
@@ -261,7 +266,7 @@ export CITEFLOW_PRIVATE_KEY=0xYOUR_PRIVATE_KEY`}
                 Restart your client and ask it to research something — it calls <code className="px-1.5 py-0.5 bg-[var(--color-panel-deep)] rounded text-sm">citeflow_research</code> on its own when relevant. It even auto-deposits into Gateway the first time it needs to, so there&apos;s no manual funding step beyond getting testnet USDC from the faucet. Full details in <code className="px-1.5 py-0.5 bg-[var(--color-panel-deep)] rounded text-sm">mcp-server/README.md</code>.
               </p>
 
-              <h4 className="text-base font-bold mt-8 mb-3">Works the same with Codex and Antigravity</h4>
+              <h4 className="text-base font-bold mt-8 mb-3">Works the same with Codex, Antigravity, and OpenCode</h4>
               <p className="text-[var(--color-soft-ink)] mb-4 text-sm">
                 Same server, same tool — CLI, IDE extension, or desktop app all work. Only the config format and location differ, since each client is a separate, independently-built product.
               </p>
@@ -273,15 +278,37 @@ export CITEFLOW_PRIVATE_KEY=0xYOUR_PRIVATE_KEY`}
 {`[mcp_servers.citeflow]
 command = "node"
 args = ["/absolute/path/to/mcp-server/index.mjs"]
+tool_timeout_sec = 180
 
 [mcp_servers.citeflow.env]
 CITEFLOW_PRIVATE_KEY = "0xYOUR_PRIVATE_KEY"
 CITEFLOW_RESEARCH_URL = "https://citeflowai.xyz/api/agent/research"`}
               </pre>
 
-              <p className="text-[var(--color-soft-ink)] mt-4 mb-2 text-sm"><strong>Antigravity</strong> (desktop app or CLI) uses the same JSON shape as Claude, but a different file — global config at <code className="px-1.5 py-0.5 bg-[var(--color-panel-deep)] rounded text-sm">~/.gemini/config/mcp_config.json</code>, or workspace-local at <code className="px-1.5 py-0.5 bg-[var(--color-panel-deep)] rounded text-sm">.agents/mcp_config.json</code>. In the desktop app you can also add it via <strong>MCP Servers → Manage MCP Servers → View raw config</strong> instead of editing the file directly.</p>
+              <p className="text-[var(--color-soft-ink)] mt-4 mb-2 text-sm"><strong>Antigravity</strong> (desktop app or CLI) uses the same JSON shape as Claude, but a different file — global config at <code className="px-1.5 py-0.5 bg-[var(--color-panel-deep)] rounded text-sm">~/.gemini/config/mcp_config.json</code>, or workspace-local at <code className="px-1.5 py-0.5 bg-[var(--color-panel-deep)] rounded text-sm">.agents/mcp_config.json</code>. In the desktop app you can also add it via <strong>MCP Servers → Manage MCP Servers → View raw config</strong> instead of editing the file directly. If Antigravity exposes a per-server timeout setting, set it to at least 3 minutes for the same reason as above.</p>
               <p className="text-[var(--color-soft-ink)] mt-2 text-sm bg-[var(--color-rust)]/10 border border-[var(--color-rust)]/30 rounded p-3">
                 <strong>One gotcha specific to Antigravity:</strong> adding the server isn&apos;t enough on its own — it also has a separate permissions screen (<strong>MCP Tools</strong>) where tools must be explicitly allowed before the agent can call them. If the tool connects but calls silently do nothing, add an <strong>Allow</strong> rule for <code className="px-1 py-0.5 bg-[var(--color-panel-deep)] rounded">citeflow_research</code> there.
+              </p>
+
+              <p className="text-[var(--color-soft-ink)] mt-4 mb-2 text-sm"><strong>OpenCode</strong> (CLI) uses <code className="px-1.5 py-0.5 bg-[var(--color-panel-deep)] rounded text-sm">opencode.json</code> or <code className="px-1.5 py-0.5 bg-[var(--color-panel-deep)] rounded text-sm">opencode.jsonc</code>, either globally at <code className="px-1.5 py-0.5 bg-[var(--color-panel-deep)] rounded text-sm">~/.config/opencode/opencode.jsonc</code> or project-local in your working directory (project-local is the one OpenCode reliably picks up):</p>
+              <pre className="bg-[var(--color-panel-deep)] border border-[var(--color-border-subtle)] rounded p-4 overflow-x-auto text-sm font-mono text-[var(--color-ink)]">
+{`{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "citeflow-research": {
+      "type": "local",
+      "command": ["node", "/absolute/path/to/mcp-server/index.mjs"],
+      "enabled": true,
+      "timeout": 180000,
+      "environment": {
+        "CITEFLOW_PRIVATE_KEY": "0xYOUR_PRIVATE_KEY"
+      }
+    }
+  }
+}`}
+              </pre>
+              <p className="text-[var(--color-soft-ink)] mt-2 text-sm bg-[var(--color-rust)]/10 border border-[var(--color-rust)]/30 rounded p-3">
+                <strong>One gotcha specific to OpenCode:</strong> after editing the config, fully quit and relaunch OpenCode, not just start a new chat — MCP servers are loaded once at process startup.
               </p>
             </div>
 
