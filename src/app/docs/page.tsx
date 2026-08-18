@@ -234,7 +234,8 @@ console.log(data.purchasedSources)  // which creators just got paid`}
               </p>
               <p className="text-[var(--color-soft-ink)] mb-4 text-sm">Setup:</p>
               <pre className="bg-[var(--color-panel-deep)] border border-[var(--color-border-subtle)] rounded p-4 overflow-x-auto text-sm font-mono text-[var(--color-ink)]">
-{`cd mcp-server
+{`git clone https://github.com/vickman787/citeflowAI
+cd citeflowAI/mcp-server
 npm install
 export CITEFLOW_PRIVATE_KEY=0xYOUR_PRIVATE_KEY`}
               </pre>
