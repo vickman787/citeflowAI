@@ -58,8 +58,11 @@ async function callOpenRouterJSON(prompt: string, schema: any) {
     },
     body: JSON.stringify({
       model: 'anthropic/claude-3-haiku',
-      max_tokens: 700,
-      messages: [{ role: 'user', content: prompt }],
+      max_tokens: 2000,
+      messages: [
+        { role: 'system', content: 'Return only a valid JSON object matching the requested schema. Do not use markdown code blocks.' },
+        { role: 'user', content: prompt }
+      ],
       response_format: { type: 'json_object' }
     })
   })
