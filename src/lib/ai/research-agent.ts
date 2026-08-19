@@ -46,6 +46,42 @@ async function callGeminiJSON(prompt: string, schema: any) {
   }
 }
 
+async function callOpenAIJSON(prompt: string, schema: any) {
+  const apiKey = process.env.OPENAI_API_KEY
+  if (!apiKey) throw new Error('OPENAI_API_KEY is not set')
+
+  const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${apiKey}`
+    },
+    body: JSON.stringify({
+      model: process.env.OPENAI_RESEARCH_MODEL || 'gpt-4o-mini',
+      max_tokens: 2000,
+      messages: [
+        { role: 'system', content: 'Return only a valid JSON object matching the requested schema. Do not use markdown code blocks.' },
+        { role: 'user', content: prompt }
+      ],
+      response_format: { type: 'json_object' }
+    })
+  })
+
+  const data = await response.json()
+
+  if (!response.ok) {
+    throw new Error(`OpenAI API Error: ${data.error?.message || 'Unknown'}`)
+  }
+
+  try {
+    const jsonString = data.choices[0].message.content
+    const parsed = JSON.parse(jsonString)
+    return schema.parse(parsed)
+  } catch (e) {
+    throw new Error('Failed to parse OpenAI output according to Zod schema')
+  }
+}
+
 async function callOpenRouterJSON(prompt: string, schema: any) {
   const apiKey = process.env.OPENROUTER_API_KEY
   if (!apiKey) throw new Error('OPENROUTER_API_KEY is not set')
@@ -89,6 +125,15 @@ async function callOpenRouterJSON(prompt: string, schema: any) {
 }
 
 async function callLLM(prompt: string, schema: any, onProgress?: (msg: string) => void) {
+  if (process.env.OPENAI_API_KEY) {
+    try {
+      return await callOpenAIJSON(prompt, schema)
+    } catch (e: any) {
+      console.warn(`OpenAI API failed: ${e.message}. Falling back...`)
+      if (onProgress) onProgress('OpenAI research provider unavailable. Falling back to the primary research provider...')
+    }
+  }
+
   try {
     return await callGeminiJSON(prompt, schema)
   } catch (e: any) {

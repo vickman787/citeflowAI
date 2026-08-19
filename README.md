@@ -61,6 +61,9 @@ SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
 
 # AI Providers
 GEMINI_API_KEY=your_gemini_key
+OPENAI_API_KEY=your_openai_key
+# Optional: defaults to gpt-4o-mini
+OPENAI_RESEARCH_MODEL=gpt-4o-mini
 ANTHROPIC_API_KEY=your_anthropic_key
 
 # Circle Web3 Infrastructure
