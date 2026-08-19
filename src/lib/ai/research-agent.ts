@@ -57,7 +57,7 @@ async function callOpenRouterJSON(prompt: string, schema: any) {
       'Authorization': `Bearer ${apiKey}`
     },
     body: JSON.stringify({
-      model: 'anthropic/claude-3-haiku',
+      model: 'openai/gpt-4o-mini',
       max_tokens: 2000,
       messages: [
         { role: 'system', content: 'Return only a valid JSON object matching the requested schema. Do not use markdown code blocks.' },
@@ -88,55 +88,11 @@ async function callOpenRouterJSON(prompt: string, schema: any) {
   }
 }
 
-async function callAnthropicJSON(prompt: string, schema: any) {
-  const apiKey = process.env.ANTHROPIC_API_KEY
-  if (!apiKey) throw new Error('ANTHROPIC_API_KEY is not set')
-
-  const response = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': apiKey,
-      'anthropic-version': '2023-06-01'
-    },
-    body: JSON.stringify({
-      model: 'claude-haiku-4-5-20251001',
-      max_tokens: 700,
-      system: 'You must return a valid JSON object matching the requested schema. Output only the raw JSON without any markdown code blocks.',
-      messages: [{ role: 'user', content: prompt }]
-    })
-  })
-  
-  const data = await response.json()
-  
-  if (!response.ok) {
-    throw new Error(`Anthropic API Error: ${data.error?.message || 'Unknown'}`)
-  }
-
-  try {
-    const jsonString = data.content[0].text
-    let cleanString = jsonString.trim()
-    const firstBrace = cleanString.indexOf('{')
-    const lastBrace = cleanString.lastIndexOf('}')
-    if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
-      cleanString = cleanString.substring(firstBrace, lastBrace + 1)
-    }
-    const parsed = JSON.parse(cleanString)
-    return schema.parse(parsed)
-  } catch (e) {
-    throw new Error('Failed to parse Anthropic output according to Zod schema')
-  }
-}
-
 async function callLLM(prompt: string, schema: any, onProgress?: (msg: string) => void) {
   try {
     return await callGeminiJSON(prompt, schema)
   } catch (e: any) {
     console.warn(`Agent 1 API failed: ${e.message}. Falling back...`)
-    if (process.env.ANTHROPIC_API_KEY) {
-      if (onProgress) onProgress('Agent 1 rate limited. Falling back to Agent 2 (Secondary Node)...')
-      return await callAnthropicJSON(prompt, schema)
-    }
     if (process.env.OPENROUTER_API_KEY) {
       if (onProgress) onProgress('Agent 1 rate limited. Falling back to Agent 2 (Secondary Node)...')
       return await callOpenRouterJSON(prompt, schema)
