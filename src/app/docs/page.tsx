@@ -165,18 +165,18 @@ export default function DocsPage() {
 
             <div className="bg-[var(--color-panel)] p-6 border border-[var(--color-border-subtle)] rounded shadow-sm">
               <p className="text-[var(--color-soft-ink)] mb-4">
-                CiteFlowAI can also be called directly by other autonomous agents — no browser, no email login, no PIN prompt. The
+                CiteFlowAI can also be called directly by other autonomous agents — no CiteFlow account, API key, or PIN prompt. The
                 <code className="mx-1 px-1.5 py-0.5 bg-[var(--color-panel-deep)] rounded text-sm">/api/agent/research</code>
                 endpoint speaks the <a href="https://x402.org" target="_blank" rel="noopener noreferrer" className="text-[var(--color-signal-green)] underline">x402</a> protocol: send a request with no payment and it returns an HTTP <strong>402</strong> challenge; retry with a signed, gasless payment authorization and it settles the payment and returns a grounded, cited answer in one round trip.
               </p>
             </div>
 
             <div className="bg-[var(--color-panel)] p-6 border border-[var(--color-border-subtle)] rounded shadow-sm">
-              <h3 className="text-xl font-bold mb-3">What you need</h3>
+              <h3 className="text-xl font-bold mb-3">Direct SDK requirements</h3>
               <ul className="list-disc pl-5 space-y-2 text-[var(--color-ink)]">
                 <li>Any standard EVM keypair — this isn&apos;t tied to Circle&apos;s wallet product; a plain private key works.</li>
                 <li>Testnet USDC and a small amount of native gas on <strong>Arc Testnet</strong>, free from the <a href="https://faucet.circle.com" target="_blank" rel="noopener noreferrer" className="text-[var(--color-signal-green)] underline">Circle Faucet</a>.</li>
-                <li>A <strong>one-time on-chain deposit</strong> into Circle&apos;s Gateway Wallet contract. Holding USDC alone isn&apos;t enough — it must be deposited into Gateway before any signed authorization can spend it. This step costs gas; every payment after it is gasless.</li>
+                <li>For direct SDK integrations, a <strong>one-time on-chain deposit</strong> into Circle&apos;s Gateway Wallet contract is required. Holding USDC alone isn&apos;t enough — it must be deposited into Gateway before any signed authorization can spend it. This step costs gas; every payment after it is gasless. The MCP integration performs this deposit automatically when needed.</li>
                 <li>The <code className="px-1.5 py-0.5 bg-[var(--color-panel-deep)] rounded text-sm">@circle-fin/x402-batching</code> client library (or any client that implements Circle Gateway&apos;s batched signing scheme).</li>
               </ul>
             </div>
@@ -225,6 +225,35 @@ console.log(data.purchasedSources)  // which creators just got paid`}
               </p>
             </div>
 
+            <div className="bg-[var(--color-panel)] p-6 border border-[var(--color-border-subtle)] rounded shadow-sm">
+              <h3 className="text-xl font-bold mb-3 flex items-center gap-2">
+                <Wallet className="text-[var(--color-signal-green)]" size={20} />
+                Circle Agent Wallet
+              </h3>
+              <p className="text-[var(--color-soft-ink)] mb-4">
+                Circle Agent Wallet provides a managed alternative to supplying a raw EVM private key. The Circle CLI logs in the agent wallet, inspects the x402 challenge, checks or funds its Gateway balance, estimates the charge, and pays the same research endpoint after user confirmation.
+              </p>
+              <pre className="bg-[var(--color-panel-deep)] border border-[var(--color-border-subtle)] rounded p-4 overflow-x-auto text-sm font-mono text-[var(--color-ink)]">
+{`circle services pay \
+  "https://citeflowai.xyz/api/agent/research?q=YOUR_ENCODED_QUESTION" \
+  --address 0xYOUR_AGENT_WALLET_ADDRESS \
+  --chain ARC-TESTNET \
+  --estimate \
+  --output json`}
+              </pre>
+              <p className="text-[var(--color-soft-ink)] mt-4 text-sm">
+                Estimate first and show the price, network, seller, and question before paying. The Agent Wallet must have enough Arc Testnet Gateway balance; a regular wallet balance is not automatically available for x402 payments.
+              </p>
+              <a
+                href="https://github.com/vickman787/citeflowAI/blob/main/CIRCLE_AGENT_WALLET_X402.md"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex mt-4 text-sm font-semibold text-[var(--color-signal-green)] underline"
+              >
+                Read the complete Circle Agent Wallet guide
+              </a>
+            </div>
+
             <div className="bg-[var(--color-panel)] p-6 border border-[var(--color-signal-green)]/40 rounded shadow-sm">
               <h3 className="text-xl font-bold mb-3 flex items-center gap-2">
                 <Bot className="text-[var(--color-signal-green)]" size={20} />
@@ -263,7 +292,7 @@ export CITEFLOW_PRIVATE_KEY=0xYOUR_PRIVATE_KEY`}
                 <code className="px-1.5 py-0.5 bg-[var(--color-panel-deep)] rounded">CITEFLOW_RESEARCH_URL</code> is actually optional — it already defaults to this production endpoint — but it&apos;s shown explicitly here so the example is copy-pasteable as-is.
               </p>
               <p className="text-[var(--color-soft-ink)] mt-4 text-sm">
-                Restart your client and ask it to research something — it calls <code className="px-1.5 py-0.5 bg-[var(--color-panel-deep)] rounded text-sm">citeflow_research</code> on its own when relevant. It even auto-deposits into Gateway the first time it needs to, so there&apos;s no manual funding step beyond getting testnet USDC from the faucet. Full details in <code className="px-1.5 py-0.5 bg-[var(--color-panel-deep)] rounded text-sm">mcp-server/README.md</code>.
+                Restart your client and ask it to research something — it calls <code className="px-1.5 py-0.5 bg-[var(--color-panel-deep)] rounded text-sm">citeflow_research</code> on its own when relevant. The MCP server auto-deposits into Gateway the first time it needs to, so there&apos;s no manual Gateway deposit step. You only need testnet USDC and Arc Testnet gas for that automatic deposit. Full details in <code className="px-1.5 py-0.5 bg-[var(--color-panel-deep)] rounded text-sm">mcp-server/README.md</code>.
               </p>
 
               <h4 className="text-base font-bold mt-8 mb-3">Works the same with Codex, Antigravity, and OpenCode</h4>

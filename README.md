@@ -5,7 +5,7 @@
 
 CiteFlowAI is a Web3-native AI research agent built to solve a problem every AI product shares: **content creators are rarely compensated when an agent scrapes and synthesizes their work.** A researcher locks a budget, the agent grounds its answer only in registered, verified sources, and every source it actually cites gets paid on the spot — no subscriptions, no ad revenue splits, no invoices.
 
-CiteFlowAI is payable by humans through the web terminal, and by autonomous agents directly over HTTP via the [x402 payment protocol](https://x402.org) or the bundled [MCP server](mcp-server/README.md) — so Claude, Codex, Antigravity, or any x402-aware client can pay for and run a research session with no login and no API key.
+CiteFlowAI is payable by humans through the web terminal, and by autonomous agents directly over HTTP via the [x402 payment protocol](https://x402.org), [Circle Agent Wallet](CIRCLE_AGENT_WALLET_X402.md), or the bundled [MCP server](mcp-server/README.md) — so Claude, Codex, Antigravity, or any x402-aware client can pay for and run a research session with no CiteFlow login or API key.
 
 ![Next.js](https://img.shields.io/badge/Next.js-16-black?style=flat&logo=next.js)
 ![Supabase](https://img.shields.io/badge/Supabase-Database-3ECF8E?style=flat&logo=supabase)
@@ -28,9 +28,9 @@ CiteFlowAI is payable by humans through the web terminal, and by autonomous agen
 - **Creator ownership verification (hard gate):** Before anyone can register a source, they must prove control of it — domain, X, Medium, or Substack. Enforced by a database constraint, not application logic, so no one can register someone else's work and intercept their payments.
 - **Invisible Web2-to-Web3 auth (Circle + Supabase):** Email + PIN onboarding via Circle Programmable Wallets, no seed phrase. The backend maps the Circle Wallet identity into a Supabase auth session so research history and payouts persist across devices.
 - **RAG via embeddings:** Registered sources are embedded and retrieved by relevance (`src/lib/ai/embeddings.ts`), not keyword match, so citation and payment are tied to what actually grounded the answer.
-- **Multi-model LLM fallback:** Primary synthesis via Gemini 2.5 Flash, with automatic fallback to Claude on rate limits.
+- **Multi-model LLM fallback:** Uses OpenAI first when `OPENAI_API_KEY` is configured, then falls back to Gemini and OpenRouter if a provider is unavailable.
 - **Live ledger:** A terminal-themed dashboard showing real-time budgets, citations, and payouts as they settle on-chain.
-- **x402 agent endpoint + MCP server:** `/api/agent/research` is a spec-compliant, agent-payable HTTP 402 endpoint; `mcp-server/` wraps it as an MCP tool (`citeflow_research`) for Claude, Codex, Antigravity, or any MCP-compatible client. See [docs](src/app/docs/page.tsx) and the [MCP server README](mcp-server/README.md) for setup.
+- **x402 agent endpoint + agent integrations:** `/api/agent/research` is a spec-compliant, agent-payable HTTP 402 endpoint. Call it with the direct Gateway SDK, a [Circle Agent Wallet](CIRCLE_AGENT_WALLET_X402.md), or the `citeflow_research` tool from the bundled [MCP server](mcp-server/README.md).
 
 ## 🛠️ Primitives for builders (open source)
 
@@ -88,7 +88,7 @@ npm run dev
 
 3. Open [http://localhost:3000](http://localhost:3000) with your browser to see the live app.
 
-For agent/MCP integration, see [`src/app/docs/page.tsx`](src/app/docs/page.tsx) and [`mcp-server/README.md`](mcp-server/README.md).
+For agent integrations, see the [web documentation](src/app/docs/page.tsx), [Circle Agent Wallet guide](CIRCLE_AGENT_WALLET_X402.md), and [MCP server guide](mcp-server/README.md).
 
 ## 📄 License
 MIT License
