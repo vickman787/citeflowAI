@@ -44,7 +44,17 @@ const routes: RoutesConfig = {
       network: 'eip155:5042002', // Arc Testnet
       payTo: AGENT_TREASURY_ADDRESS,
       price: '$1.00',
-      maxTimeoutSeconds: 604800,
+      // Gateway-batching x402 clients (e.g. @circle-fin/cli's `services pay`)
+      // hardcode a 30-day (2,592,000s) floor on maxTimeoutSeconds for every
+      // batched payment they sign, regardless of what a route advertises.
+      // GatewayEvmScheme.enhancePaymentRequirements only bumps this route's
+      // configured value up to its own ~7-day minimum (604,900s), so a
+      // client's echoed `accepted.maxTimeoutSeconds` (2,592,000) never
+      // deep-equals the freshly rebuilt server requirement on replay,
+      // and every such payment was rejected with "No matching payment
+      // requirements". Matching that 30-day floor here keeps both sides
+      // in agreement.
+      maxTimeoutSeconds: 2592000,
     },
     resource: '/api/agent/research',
     description: 'CiteFlow AI grounded research answer, agent-payable via x402',
