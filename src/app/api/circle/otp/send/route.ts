@@ -12,7 +12,15 @@ export async function POST(req: Request) {
         );
     }
 
-    const apiKey = (network === 'arc-mainnet'
+    const isMainnet = network === 'arc-mainnet';
+    if (isMainnet && !process.env.CIRCLE_API_KEY_MAINNET) {
+      return NextResponse.json(
+        { error: 'Arc Mainnet is selected, but CIRCLE_API_KEY_MAINNET is missing in Vercel environment variables. Please add it and redeploy.' },
+        { status: 500 }
+      );
+    }
+
+    const apiKey = (isMainnet
       ? (process.env.CIRCLE_API_KEY_MAINNET || process.env.CIRCLE_API_KEY)
       : process.env.CIRCLE_API_KEY) as string;
 
@@ -30,9 +38,10 @@ export async function POST(req: Request) {
     return NextResponse.json(response.data);
 
   } catch (error: any) {
+    const detailedError = error?.response?.data?.message || error?.message || 'Failed to send OTP';
     console.error('Circle OTP Error:', error?.response?.data || error);
     return NextResponse.json(
-      { error: error?.response?.data?.message || 'Failed to send OTP' },
+      { error: detailedError },
       { status: 500 }
     );
   }

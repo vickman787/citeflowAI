@@ -10,6 +10,14 @@ export async function POST(req: Request) {
   }
 
   const isMainnet = network === 'arc-mainnet' || blockchain === 'ARC';
+
+  if (isMainnet && !process.env.CIRCLE_API_KEY_MAINNET) {
+    return NextResponse.json(
+      { error: 'Arc Mainnet is selected, but CIRCLE_API_KEY_MAINNET is missing in Vercel environment variables. Please add it and redeploy.' },
+      { status: 500 }
+    );
+  }
+
   const apiKey = (isMainnet
     ? (process.env.CIRCLE_API_KEY_MAINNET || process.env.CIRCLE_API_KEY)
     : process.env.CIRCLE_API_KEY) as string;
@@ -54,15 +62,16 @@ export async function POST(req: Request) {
       } catch (innerError: any) {
         console.error('Inner Circle Error:', innerError?.response?.data || innerError);
         return NextResponse.json(
-          { error: innerError?.response?.data?.message || 'Failed to fetch existing wallet' },
+          { error: innerError?.response?.data?.message || innerError?.message || 'Failed to fetch existing wallet' },
           { status: 500 }
         );
       }
     }
 
+    const detailedError = error?.response?.data?.message || error?.message || 'Failed to initialize wallet challenge';
     console.error('Circle Initialize Error:', error?.response?.data || error);
     return NextResponse.json(
-      { error: error?.response?.data?.message || 'Failed to initialize wallet challenge' },
+      { error: detailedError },
       { status: 500 }
     );
   }
