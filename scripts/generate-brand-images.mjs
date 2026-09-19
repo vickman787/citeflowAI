@@ -35,7 +35,7 @@ const og = `
 
   <!-- status line -->
   <circle cx="96" cy="96" r="7" fill="${GREEN}"/>
-  <text x="118" y="104" font-family="${MONO}" font-size="22" letter-spacing="4" fill="${DIM}">LIVE ON ARC TESTNET · PAY-PER-CITATION · USDC</text>
+  <text x="118" y="104" font-family="${MONO}" font-size="22" letter-spacing="4" fill="${DIM}">LIVE ON ARC MAINNET · PAY-PER-CITATION · USDC</text>
 
   <!-- logo -->
   ${logo(88, 190, 230)}
@@ -57,7 +57,7 @@ const og = `
 await sharp(Buffer.from(og)).png().toFile('src/app/opengraph-image.png')
 console.log('✓ src/app/opengraph-image.png (1200x630)')
 
-writeFileSync('src/app/opengraph-image.alt.txt', 'citeflow_ai — Every citation pays its author. Live on Arc Testnet.')
+writeFileSync('src/app/opengraph-image.alt.txt', 'citeflow_ai — Every citation pays its author. Live on Arc Mainnet.')
 console.log('✓ src/app/opengraph-image.alt.txt')
 
 // ── apple-icon (180x180) ────────────────────────────────────────

@@ -20,8 +20,22 @@ const mono = IBM_Plex_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "citeflow_ai | Autonomous AI Research Terminal",
-  description: "The research terminal that pays its sources. USDC nanopayments per citation, settled on the Arc network.",
+  metadataBase: new URL("https://citeflowai.xyz"),
+  title: "citeflow_ai | Arc Mainnet",
+  description: "The research terminal that pays its sources. USDC nanopayments per citation, settled on Arc Mainnet.",
+  openGraph: {
+    title: "citeflow_ai | Arc Mainnet",
+    description: "The research terminal that pays its sources. USDC nanopayments per citation, settled on Arc Mainnet.",
+    url: "https://citeflowai.xyz",
+    siteName: "CiteFlow AI",
+    locale: "en_US",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "citeflow_ai | Arc Mainnet",
+    description: "The research terminal that pays its sources. USDC nanopayments per citation, settled on Arc Mainnet.",
+  },
 };
 
 import { cookies } from "next/headers";
