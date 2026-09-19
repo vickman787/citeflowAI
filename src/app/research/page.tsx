@@ -1,10 +1,12 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Copy, LogOut, Check, Trash2 } from 'lucide-react'
 import { W3SSdk } from '@circle-fin/w3s-pw-web-sdk'
+import { useNetwork } from '@/context/NetworkContext'
 
 export default function ResearchWorkspacePage() {
+  const { network, networkId, appId } = useNetwork()
   const [query, setQuery] = useState('')
   const [maxBudget, setMaxBudget] = useState('')
   const [loading, setLoading] = useState(false)
@@ -27,24 +29,51 @@ export default function ResearchWorkspacePage() {
   }
   const [history, setHistory] = useState<HistoryItem[]>([])
 
-  // Load from localStorage on mount
-  useEffect(() => {
-    const savedAddress = localStorage.getItem('circle_wallet_address')
-    const savedToken = localStorage.getItem('circle_user_token')
-    const savedEncKey = localStorage.getItem('circle_encryption_key')
+  const getStored = useCallback((baseKey: string) => {
+    if (typeof window === 'undefined') return null;
+    const scoped = localStorage.getItem(`${baseKey}_${networkId}`);
+    if (scoped) return scoped;
+    if (networkId === 'arc-testnet') return localStorage.getItem(baseKey);
+    return null;
+  }, [networkId]);
 
-    if (savedAddress) setWalletAddress(savedAddress)
-    if (savedToken) setUserToken(savedToken)
-    if (savedEncKey) setEncryptionKey(savedEncKey)
+  const handleLogout = useCallback(() => {
+    setWalletAddress(null)
+    setWalletBalance(null)
+    setUserToken(null)
+    setEncryptionKey(null)
+    localStorage.removeItem(`circle_wallet_address_${networkId}`)
+    localStorage.removeItem(`circle_user_token_${networkId}`)
+    localStorage.removeItem(`circle_encryption_key_${networkId}`)
+    if (networkId === 'arc-testnet') {
+      localStorage.removeItem('circle_wallet_address')
+      localStorage.removeItem('circle_user_token')
+      localStorage.removeItem('circle_encryption_key')
+    }
+    window.dispatchEvent(new Event('wallet_changed'))
+  }, [networkId])
+
+  const syncWallet = useCallback(() => {
+    setWalletBalance(null)
+    const savedAddress = getStored('circle_wallet_address')
+    const savedToken = getStored('circle_user_token')
+    const savedEncKey = getStored('circle_encryption_key')
+
+    setWalletAddress(savedAddress)
+    setUserToken(savedToken)
+    setEncryptionKey(savedEncKey)
 
     if (savedToken) {
-      fetch('/api/circle/wallet', {
-        headers: { 'Authorization': `Bearer ${savedToken}` }
+      fetch(`/api/circle/wallet?network=${networkId}`, {
+        headers: { 
+          'Authorization': `Bearer ${savedToken}`,
+          'x-network': networkId
+        }
       })
       .then(res => {
         if (res.ok) return res.json()
-        if (res.status === 401) {
-          // Circle userToken expired — clear the stale local session
+        setWalletBalance(null)
+        if (res.status === 401 || res.status === 400) {
           handleLogout()
         }
         return null
@@ -52,7 +81,10 @@ export default function ResearchWorkspacePage() {
       .then(data => {
         if (data?.balance) setWalletBalance(data.balance)
       })
-      .catch(e => console.warn('Wallet balance fetch failed:', e))
+      .catch(e => {
+        console.warn('Wallet balance fetch failed:', e)
+        setWalletBalance(null)
+      })
 
       fetch('/api/research/history')
         .then(res => res.ok ? res.json() : null)
@@ -61,14 +93,20 @@ export default function ResearchWorkspacePage() {
         })
         .catch(e => console.warn('History fetch failed:', e))
     }
+  }, [getStored, networkId, handleLogout])
 
-    if (!sdk) {
-      const circleSdk = new W3SSdk({
-        appSettings: { appId: process.env.NEXT_PUBLIC_CIRCLE_APP_ID as string }
-      })
-      setSdk(circleSdk)
-    }
-  }, [sdk])
+  useEffect(() => {
+    syncWallet()
+    window.addEventListener('wallet_changed', syncWallet)
+    return () => window.removeEventListener('wallet_changed', syncWallet)
+  }, [syncWallet])
+
+  useEffect(() => {
+    const circleSdk = new W3SSdk({
+      appSettings: { appId: appId || (process.env.NEXT_PUBLIC_CIRCLE_APP_ID as string) }
+    })
+    setSdk(circleSdk)
+  }, [appId])
 
   const handleCopy = () => {
     if (walletAddress) {
@@ -89,17 +127,6 @@ export default function ResearchWorkspacePage() {
       setIsCopied(true)
       setTimeout(() => setIsCopied(false), 2000)
     }
-  }
-
-  const handleLogout = () => {
-    setWalletAddress(null)
-    setWalletBalance(null)
-    setUserToken(null)
-    setEncryptionKey(null)
-    localStorage.removeItem('circle_wallet_address')
-    localStorage.removeItem('circle_user_token')
-    localStorage.removeItem('circle_encryption_key')
-    window.dispatchEvent(new Event('wallet_changed'))
   }
 
   const handleDeleteHistory = async (id: string, e: React.MouseEvent) => {
@@ -130,8 +157,16 @@ export default function ResearchWorkspacePage() {
       
       const paymentRes = await fetch('/api/circle/payment/create', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userToken, walletAddress: walletAddress, amount: maxBudget })
+        headers: { 
+          'Content-Type': 'application/json',
+          'x-network': networkId 
+        },
+        body: JSON.stringify({ 
+          userToken, 
+          walletAddress: walletAddress, 
+          amount: maxBudget,
+          network: networkId 
+        })
       })
 
       if (!paymentRes.ok) {
@@ -189,8 +224,17 @@ export default function ResearchWorkspacePage() {
 
       const res = await fetch('/api/research', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query, maxBudget: parseFloat(maxBudget), challengeId, userToken })
+        headers: { 
+          'Content-Type': 'application/json',
+          'x-network': networkId
+        },
+        body: JSON.stringify({ 
+          query, 
+          maxBudget: parseFloat(maxBudget), 
+          challengeId, 
+          userToken,
+          network: networkId
+        })
       })
 
       if (!res.ok) {
@@ -392,7 +436,7 @@ export default function ResearchWorkspacePage() {
           <section className="card-panel">
             <div className="panel-h">
               financial ledger
-              <span className="ml-auto text-[var(--color-faint)]">arc testnet · usdc</span>
+              <span className="ml-auto text-[var(--color-faint)]">{network.name.toLowerCase()} · usdc</span>
             </div>
             <div>
               {result.purchasedSources.length === 0 ? (

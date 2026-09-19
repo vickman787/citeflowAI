@@ -69,7 +69,17 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const agentResult = await runResearchAgent(session.id, query, budget, payerAddress)
+    const isMainnet = result.paymentRequirements.network === 'eip155:5042'
+    const activeNetwork = isMainnet ? 'arc-mainnet' : 'arc-testnet'
+
+    const agentResult = await runResearchAgent(
+      session.id,
+      query,
+      budget,
+      payerAddress,
+      undefined,
+      activeNetwork
+    )
 
     await supabase
       .from('research_sessions')

@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { W3SSdk } from '@circle-fin/w3s-pw-web-sdk';
+import { useNetwork } from '@/context/NetworkContext';
 
 interface SendModalProps {
   isOpen: boolean;
@@ -14,6 +15,7 @@ interface SendModalProps {
 type ModalState = 'INPUT' | 'LOADING' | 'AUTHORIZING' | 'COMPLETED';
 
 export default function SendModal({ isOpen, onClose, userToken, encryptionKey, onSuccess }: SendModalProps) {
+  const { network, networkId, appId } = useNetwork();
   const [address, setAddress] = useState('');
   const [amount, setAmount] = useState('');
   const [modalState, setModalState] = useState<ModalState>('INPUT');
@@ -21,9 +23,9 @@ export default function SendModal({ isOpen, onClose, userToken, encryptionKey, o
   const [sdk, setSdk] = useState<W3SSdk | null>(null);
 
   useEffect(() => {
-    if (isOpen && !sdk) {
+    if (isOpen) {
       const circleSdk = new W3SSdk({
-        appSettings: { appId: process.env.NEXT_PUBLIC_CIRCLE_APP_ID as string }
+        appSettings: { appId: appId || (process.env.NEXT_PUBLIC_CIRCLE_APP_ID as string) }
       });
       setSdk(circleSdk);
     }
@@ -53,7 +55,8 @@ export default function SendModal({ isOpen, onClose, userToken, encryptionKey, o
         body: JSON.stringify({ 
             userToken, 
             amount, 
-            destinationAddress: address 
+            destinationAddress: address,
+            network: networkId
         }),
       });
 
@@ -110,7 +113,7 @@ export default function SendModal({ isOpen, onClose, userToken, encryptionKey, o
              modalState === 'LOADING' ? 'Preparing Transaction' : 'Transaction Complete!'}
           </h2>
           <p className="text-sm text-[var(--color-soft-ink)]">
-            {modalState === 'INPUT' && 'Withdraw your USDC to any EVM-compatible wallet on Arc Testnet.'}
+            {modalState === 'INPUT' && `Withdraw your USDC to any EVM-compatible wallet on ${network.name}.`}
             {modalState === 'AUTHORIZING' && 'Enter your PIN to securely sign the transaction on the blockchain.'}
           </p>
         </div>
@@ -176,7 +179,7 @@ export default function SendModal({ isOpen, onClose, userToken, encryptionKey, o
                   <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path></svg>
                </div>
                <h3 className="font-medium text-lg">Transfer Submitted!</h3>
-               <p className="text-sm text-[var(--color-soft-ink)] mt-2">Your USDC is on its way across the Arc Testnet.</p>
+               <p className="text-sm text-[var(--color-soft-ink)] mt-2">Your USDC is on its way across {network.name}.</p>
            </div>
         )}
       </div>

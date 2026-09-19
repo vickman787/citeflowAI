@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { W3SSdk } from '@circle-fin/w3s-pw-web-sdk';
+import { useNetwork } from '@/context/NetworkContext';
 
 interface WalletModalProps {
   isOpen: boolean;
@@ -12,10 +13,12 @@ interface WalletModalProps {
 type ModalState = 'EMAIL_INPUT' | 'LOADING' | 'VERIFY_OTP' | 'SET_PIN' | 'COMPLETED';
 
 export default function WalletModal({ isOpen, onClose, onSuccess }: WalletModalProps) {
+  const { network, networkId, appId } = useNetwork();
   const [email, setEmail] = useState('');
   const [modalState, setModalState] = useState<ModalState>('EMAIL_INPUT');
   const [error, setError] = useState<string | null>(null);
   const [sdk, setSdk] = useState<W3SSdk | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   
   // State from Step 1
   const [userToken, setUserToken] = useState<string | null>(null);
@@ -26,14 +29,15 @@ export default function WalletModal({ isOpen, onClose, onSuccess }: WalletModalP
     // sessions leaves stale iframe/config state that breaks the OTP flow.
     if (isOpen) {
       const circleSdk = new W3SSdk({
-        appSettings: { appId: process.env.NEXT_PUBLIC_CIRCLE_APP_ID as string }
+        appSettings: { appId: appId || (process.env.NEXT_PUBLIC_CIRCLE_APP_ID as string) }
       });
       setSdk(circleSdk);
       setModalState('EMAIL_INPUT');
       setEmail('');
       setError(null);
+      setIsSubmitting(false);
     }
-  }, [isOpen]);
+  }, [isOpen, appId]);
 
   if (!isOpen) return null;
 
@@ -58,6 +62,8 @@ export default function WalletModal({ isOpen, onClose, onSuccess }: WalletModalP
 
   const handleSendOtp = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmitting) return;
+    setIsSubmitting(true);
     setError(null);
     setModalState('LOADING');
 
@@ -69,10 +75,20 @@ export default function WalletModal({ isOpen, onClose, onSuccess }: WalletModalP
       const res = await fetch('/api/circle/otp/send', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, deviceId }),
+        body: JSON.stringify({ email, deviceId, network: networkId }),
       });
 
-      const data = await res.json();
+      let data: any;
+      try {
+        data = await res.json();
+      } catch {
+        throw new Error(
+          res.status === 404
+            ? 'API route not found (404). Please restart the dev server (npm run dev).'
+            : `Server returned an invalid response (${res.status}).`
+        );
+      }
+
       if (!res.ok) throw new Error(data.error || 'Failed to send OTP');
 
       // 2. We now have deviceToken, deviceEncryptionKey, and otpToken
@@ -80,12 +96,13 @@ export default function WalletModal({ isOpen, onClose, onSuccess }: WalletModalP
 
       // 3. Move to OTP state and initialize Circle's secure iframe
       setModalState('VERIFY_OTP');
+      setIsSubmitting(false);
 
       if (sdk) {
         // We set the OTP tokens via loginConfigs inside updateConfigs
         // Make sure to include appSettings so it doesn't get overwritten!
         sdk.updateConfigs({
-          appSettings: { appId: process.env.NEXT_PUBLIC_CIRCLE_APP_ID as string },
+          appSettings: { appId: appId || (process.env.NEXT_PUBLIC_CIRCLE_APP_ID as string) },
           loginConfigs: {
             deviceToken: deviceToken,
             deviceEncryptionKey: deviceEncryptionKey || '',
@@ -111,6 +128,7 @@ export default function WalletModal({ isOpen, onClose, onSuccess }: WalletModalP
       }
 
     } catch (err: any) {
+      setIsSubmitting(false);
       setError(errMessage(err));
       setModalState('EMAIL_INPUT');
     }
@@ -123,18 +141,34 @@ export default function WalletModal({ isOpen, onClose, onSuccess }: WalletModalP
       const res = await fetch('/api/circle/initialize', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userToken: token }),
+        body: JSON.stringify({
+          userToken: token,
+          network: networkId,
+          blockchain: network.circleChain
+        }),
       });
 
-      const data = await res.json();
+      let data: any;
+      try {
+        data = await res.json();
+      } catch {
+        throw new Error(
+          res.status === 404
+            ? 'API route not found (404). Please restart the dev server (npm run dev).'
+            : `Server returned an invalid response (${res.status}).`
+        );
+      }
       if (!res.ok) throw new Error(data.error || 'Failed to initialize wallet challenge');
 
       if (data.address) {
         // User already has a wallet. Let's do the invisible login!
         await fetch('/api/circle/wallet-login', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ userToken: token }),
+          headers: { 
+            'Content-Type': 'application/json',
+            'x-network': networkId 
+          },
+          body: JSON.stringify({ userToken: token, network: networkId }),
         });
         
         setModalState('COMPLETED');
@@ -168,12 +202,15 @@ export default function WalletModal({ isOpen, onClose, onSuccess }: WalletModalP
             // found" — retry a few times before giving up.
             let loginData: any = null;
             let loginOk = false;
-            for (let i = 0; i < 4 && !loginOk; i++) {
-              if (i > 0) await new Promise((r) => setTimeout(r, 1000));
+            for (let i = 0; i < 6 && !loginOk; i++) {
+              if (i > 0) await new Promise((r) => setTimeout(r, 1500));
               const loginRes = await fetch('/api/circle/wallet-login', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ userToken: token }),
+                headers: { 
+                  'Content-Type': 'application/json',
+                  'x-network': networkId 
+                },
+                body: JSON.stringify({ userToken: token, network: networkId }),
               });
               loginData = await loginRes.json();
               loginOk = loginRes.ok && !!loginData.walletAddress;
@@ -235,14 +272,15 @@ export default function WalletModal({ isOpen, onClose, onSuccess }: WalletModalP
               <input
                 type="email"
                 required
+                disabled={isSubmitting}
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="input-field"
+                className="input-field disabled:opacity-50"
                 placeholder="you@example.com"
               />
             </div>
-            <button type="submit" className="btn btn-primary w-full">
-              Continue
+            <button type="submit" disabled={isSubmitting} className="btn btn-primary w-full disabled:opacity-50 cursor-pointer">
+              {isSubmitting ? 'Sending Code...' : 'Continue'}
             </button>
           </form>
         )}

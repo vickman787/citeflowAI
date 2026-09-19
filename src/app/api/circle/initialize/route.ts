@@ -2,26 +2,28 @@ import { initiateUserControlledWalletsClient } from '@circle-fin/user-controlled
 import { NextResponse } from 'next/server';
 import crypto from 'crypto';
 
-const circleUserSdk = initiateUserControlledWalletsClient({
-  apiKey: process.env.CIRCLE_API_KEY as string,
-});
-
 export async function POST(req: Request) {
-  const { userToken } = await req.json();
+  const { userToken, network, blockchain } = await req.json();
 
   if (!userToken) {
     return NextResponse.json({ error: 'User Token is required' }, { status: 400 });
   }
 
-  try {
+  const isMainnet = network === 'arc-mainnet' || blockchain === 'ARC';
+  const apiKey = (isMainnet
+    ? (process.env.CIRCLE_API_KEY_MAINNET || process.env.CIRCLE_API_KEY)
+    : process.env.CIRCLE_API_KEY) as string;
 
-    console.log(`Generating challenge for user token...`);
+  const targetChain = blockchain || (isMainnet ? 'ARC' : 'ARC-TESTNET');
+  const circleUserSdk = initiateUserControlledWalletsClient({ apiKey });
+
+  try {
+    console.log(`Generating challenge for user token on ${targetChain}...`);
 
     // Call Circle API to generate a challenge for the user to create a wallet
-    // Creating on Arc Testnet as per project requirements
     const response = await circleUserSdk.createUserPinWithWallets({
         userToken: userToken,
-        blockchains: ['ARC-TESTNET'],
+        blockchains: [targetChain as any],
         accountType: 'EOA',
         idempotencyKey: crypto.randomUUID()
     });
@@ -43,7 +45,7 @@ export async function POST(req: Request) {
         } else {
           const createRes = await circleUserSdk.createWallet({
             userToken,
-            blockchains: ['ARC-TESTNET'],
+            blockchains: [targetChain as any],
             accountType: 'EOA',
             idempotencyKey: crypto.randomUUID()
           });

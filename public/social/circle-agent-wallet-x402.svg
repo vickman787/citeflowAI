@@ -1,0 +1,66 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900" role="img" aria-labelledby="title desc">
+  <title id="title">CiteFlowAI tests Circle Agent Wallet payments over x402</title>
+  <desc id="desc">A terminal-style diagram showing Circle Agent Wallet to Gateway to CiteFlowAI research endpoint on Arc Testnet.</desc>
+  <defs>
+    <pattern id="scanlines" width="4" height="4" patternUnits="userSpaceOnUse">
+      <rect width="4" height="2" fill="#0C0E0A"/>
+      <rect y="2" width="4" height="2" fill="#0A0C08"/>
+    </pattern>
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="8" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+
+  <rect width="1600" height="900" fill="#0C0E0A"/>
+  <rect width="1600" height="900" fill="url(#scanlines)" opacity="0.32"/>
+
+  <g font-family="IBM Plex Mono, Consolas, monospace">
+    <text x="100" y="105" fill="#C6FF4D" font-size="22" font-weight="700" letter-spacing="5">CITEFLOW_AI / FIELD TEST 01</text>
+    <text x="100" y="195" fill="#E8EDDA" font-size="72" font-weight="700">Circle Agent Wallet</text>
+    <text x="100" y="275" fill="#C6FF4D" font-size="72" font-weight="700">meets x402 research</text>
+    <text x="100" y="345" fill="#9BA588" font-size="27">An agent-paid, cited answer on Arc Testnet.</text>
+
+    <rect x="100" y="405" width="1400" height="2" fill="#2B3324"/>
+
+    <g transform="translate(100 475)">
+      <rect width="330" height="190" fill="#161A11" stroke="#526044" stroke-width="2"/>
+      <rect width="330" height="10" fill="#C6FF4D"/>
+      <text x="28" y="58" fill="#8B9478" font-size="18" letter-spacing="3">01 / BUYER</text>
+      <text x="28" y="105" fill="#E8EDDA" font-size="29" font-weight="700">Circle Agent</text>
+      <text x="28" y="143" fill="#E8EDDA" font-size="29" font-weight="700">Wallet</text>
+      <text x="28" y="174" fill="#9BA588" font-size="16">CLI + user confirmation</text>
+    </g>
+
+    <g transform="translate(500 475)">
+      <rect width="330" height="190" fill="#161A11" stroke="#526044" stroke-width="2"/>
+      <rect width="330" height="10" fill="#FFB454"/>
+      <text x="28" y="58" fill="#8B9478" font-size="18" letter-spacing="3">02 / PAYMENT</text>
+      <text x="28" y="105" fill="#E8EDDA" font-size="29" font-weight="700">x402 + Gateway</text>
+      <text x="28" y="143" fill="#E8EDDA" font-size="29" font-weight="700">USDC</text>
+      <text x="28" y="174" fill="#9BA588" font-size="16">gasless authorization</text>
+    </g>
+
+    <g transform="translate(900 475)">
+      <rect width="330" height="190" fill="#161A11" stroke="#526044" stroke-width="2"/>
+      <rect width="330" height="10" fill="#C6FF4D"/>
+      <text x="28" y="58" fill="#8B9478" font-size="18" letter-spacing="3">03 / RESOURCE</text>
+      <text x="28" y="105" fill="#E8EDDA" font-size="29" font-weight="700">CiteFlowAI</text>
+      <text x="28" y="143" fill="#E8EDDA" font-size="29" font-weight="700">Research API</text>
+      <text x="28" y="174" fill="#9BA588" font-size="16">grounded answer + citations</text>
+    </g>
+
+    <path d="M430 570 H485" stroke="#C6FF4D" stroke-width="4"/>
+    <path d="M470 553 L490 570 L470 587" fill="none" stroke="#C6FF4D" stroke-width="4"/>
+    <path d="M830 570 H885" stroke="#FFB454" stroke-width="4"/>
+    <path d="M870 553 L890 570 L870 587" fill="none" stroke="#FFB454" stroke-width="4"/>
+
+    <circle cx="1265" cy="570" r="9" fill="#C6FF4D" filter="url(#glow)"/>
+    <path d="M1240 570 H1500" stroke="#2B3324" stroke-width="2"/>
+    <text x="1265" y="625" fill="#C6FF4D" font-size="19" letter-spacing="3">ARC TESTNET</text>
+
+    <rect x="100" y="735" width="1400" height="1" fill="#2B3324"/>
+    <text x="100" y="795" fill="#C6FF4D" font-size="21" font-weight="700">PAY PER PROMPT. PAY THE SOURCES.</text>
+    <text x="1500" y="795" fill="#5A6350" font-size="17" text-anchor="end">citeflowai.xyz</text>
+  </g>
+</svg>

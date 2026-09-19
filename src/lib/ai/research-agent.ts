@@ -15,40 +15,15 @@ const finalOutputSchema = z.object({
   citationsUsed: z.array(z.string())
 })
 
-// Basic helper for Gemini REST API
-async function callGeminiJSON(prompt: string, schema: any) {
-  const apiKey = process.env.GEMINI_API_KEY
-  if (!apiKey) throw new Error('GEMINI_API_KEY is not set')
-
-  const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      contents: [{ role: 'user', parts: [{ text: prompt }] }],
-      generationConfig: {
-        responseMimeType: "application/json",
-      }
-    })
-  })
-
-  const data = await response.json()
-  
-  if (!response.ok) {
-    throw new Error(`Gemini API Error: ${data.error?.message || 'Unknown'}`)
-  }
-
-  try {
-    const jsonString = data.candidates[0].content.parts[0].text
-    const parsed = JSON.parse(jsonString)
-    return schema.parse(parsed)
-  } catch (e) {
-    throw new Error('Failed to parse Gemini output according to Zod schema')
-  }
-}
+const groundingVerificationSchema = z.object({
+  grounded: z.boolean(),
+  groundingScore: z.number().min(0).max(1),
+  reasoning: z.string()
+})
 
 async function callOpenAIJSON(prompt: string, schema: any) {
   const apiKey = process.env.OPENAI_API_KEY
-  if (!apiKey) throw new Error('OPENAI_API_KEY is not set')
+  if (!apiKey) throw new Error('OPENAI_API_KEY is not set. Please configure your OPENAI_API_KEY.')
 
   const response = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
@@ -82,68 +57,41 @@ async function callOpenAIJSON(prompt: string, schema: any) {
   }
 }
 
-async function callOpenRouterJSON(prompt: string, schema: any) {
-  const apiKey = process.env.OPENROUTER_API_KEY
-  if (!apiKey) throw new Error('OPENROUTER_API_KEY is not set')
-
-  const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-    method: 'POST',
-    headers: { 
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${apiKey}`
-    },
-    body: JSON.stringify({
-      model: 'openai/gpt-4o-mini',
-      max_tokens: 2000,
-      messages: [
-        { role: 'system', content: 'Return only a valid JSON object matching the requested schema. Do not use markdown code blocks.' },
-        { role: 'user', content: prompt }
-      ],
-      response_format: { type: 'json_object' }
-    })
-  })
-  
-  const data = await response.json()
-  
-  if (!response.ok) {
-    throw new Error(`OpenRouter API Error: ${data.error?.message || 'Unknown'}`)
-  }
-
-  try {
-    const jsonString = data.choices[0].message.content
-    let cleanString = jsonString.trim()
-    const firstBrace = cleanString.indexOf('{')
-    const lastBrace = cleanString.lastIndexOf('}')
-    if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
-      cleanString = cleanString.substring(firstBrace, lastBrace + 1)
-    }
-    const parsed = JSON.parse(cleanString)
-    return schema.parse(parsed)
-  } catch (e) {
-    throw new Error('Failed to parse OpenRouter output according to Zod schema')
-  }
+async function callLLM(prompt: string, schema: any, onProgress?: (msg: string) => void) {
+  return await callOpenAIJSON(prompt, schema)
 }
 
-async function callLLM(prompt: string, schema: any, onProgress?: (msg: string) => void) {
-  if (process.env.OPENAI_API_KEY) {
-    try {
-      return await callOpenAIJSON(prompt, schema)
-    } catch (e: any) {
-      console.warn(`OpenAI API failed: ${e.message}. Falling back...`)
-      if (onProgress) onProgress('OpenAI research provider unavailable. Falling back to the primary research provider...')
+async function verifyCitationGrounding(
+  query: string,
+  answer: string,
+  source: { title: string; content: string },
+  onProgress?: (msg: string) => void
+) {
+  const auditPrompt = `
+    You are an impartial academic fact-checker and financial audit agent.
+    An AI research agent synthesized an answer for a user and cited the following source.
+    Your job is to determine whether the cited source actually substantiates and grounds the factual claims in the answer, or if it was merely hallucinated, loosely referenced, or superfluous.
+    
+    User Query: "${query}"
+    Synthesized Answer: "${answer}"
+    
+    Cited Source Title: "${source.title}"
+    Cited Source Content: "${source.content}"
+    
+    Instructions:
+    1. Check whether specific facts, definitions, findings, or key claims in the Synthesized Answer are directly derived from or supported by this Cited Source Content.
+    2. If the source directly supports claims made in the answer, mark grounded as true and assign a groundingScore between 0.65 and 1.0 based on how strongly and substantively it supports the answer.
+    3. If the answer does not draw meaningful substance from this source, or if the source content contradicts or fails to contain the claims, mark grounded as false and assign a low groundingScore (< 0.65).
+    
+    Return a JSON object matching this schema:
+    {
+      "grounded": boolean,
+      "groundingScore": number,
+      "reasoning": string
     }
-  }
+  `
 
-  try {
-    return await callGeminiJSON(prompt, schema)
-  } catch (e: any) {
-    console.warn(`Agent 1 API failed: ${e.message}. Falling back...`)
-    if (process.env.OPENROUTER_API_KEY) {
-      if (onProgress) onProgress('Agent 1 rate limited. Falling back to Agent 2 (Secondary Node)...')
-      return await callOpenRouterJSON(prompt, schema)
-    }
-    throw e
-  }
+  return await callLLM(auditPrompt, groundingVerificationSchema, onProgress)
 }
 
 // Per-source context budget shown to the LLM (in chunks of ~1000 chars).
@@ -178,24 +126,32 @@ export async function runResearchAgent(
   initialBudget: number,
   walletAddress: string | undefined,
   onProgress?: (msg: string) => void,
-  cookieHeader?: string
+  cookieHeader?: string,
+  network: string = 'arc-testnet'
 ) {
   let maxBudget = initialBudget;
   let totalSpentOnSources = 0;
   const platformFee = 0.20; // Ensure we keep $0.20 as platform revenue per prompt
+  const isMainnet = network === 'arc-mainnet';
   
   try {
   const supabase = createAdminClient()
 
-  if (onProgress) onProgress('Agent 1 initialized. Connecting to Treasury and querying network...')
+  if (onProgress) onProgress(`Agent 1 initialized on ${isMainnet ? 'Arc Mainnet' : 'Arc Testnet'}. Querying network corpus...`)
 
   // 1. Fetch available registered sources
-  const { data: sources, error: sourcesError } = await supabase
+  const { data: allSources, error: sourcesError } = await supabase
     .from('sources')
-    .select('id, url, title, price_usdc, source_chunks(chunk_text, embedding)')
+    .select('id, url, title, price_usdc, creator_id, source_chunks(chunk_text, embedding)')
     .eq('status', 'extracted')
 
-  if (sourcesError || !sources) throw new Error('Failed to fetch sources')
+  if (sourcesError || !allSources) throw new Error('Failed to fetch sources')
+
+  // Shield out testnet sources from Mainnet
+  // Testnet sources were registered under testnet creator '9f35b249-e8be-4ac5-84a6-adeed69b72f0'
+  const sources = isMainnet
+    ? allSources.filter(s => s.creator_id !== '9f35b249-e8be-4ac5-84a6-adeed69b72f0')
+    : allSources;
 
   // Embed the query once for chunk-level retrieval across all sources.
   // If embedding fails (e.g. quota), fall back to document-order chunk selection.
@@ -295,13 +251,64 @@ export async function runResearchAgent(
 
   const finalOutput = await callLLM(finalPrompt, finalOutputSchema, onProgress)
 
-  // 4. Execute Payments ONLY for Used Citations
-  if (onProgress) onProgress(`Executing payments for ${finalOutput.citationsUsed.length} citations explicitly used in the final answer...`)
-  
+  // 4. Grounding Verification & Audit Gate (Critic Step)
+  // Before releasing payment to creators, verify that each cited source
+  // genuinely substantiated the factual claims in the synthesized answer.
+  if (onProgress) {
+    onProgress(`Audit phase: Verifying factual grounding for ${finalOutput.citationsUsed.length} cited source${finalOutput.citationsUsed.length === 1 ? '' : 's'} before releasing payment...`)
+  }
+
+  const verifiedSources: any[] = []
+
   for (const usedId of finalOutput.citationsUsed) {
     const source = relevantSources.find(s => s.id === usedId)
     if (!source) continue
 
+    if (onProgress) onProgress(`Auditing citation grounding: ${source.title}...`)
+
+    let verification
+    try {
+      verification = await verifyCitationGrounding(query, finalOutput.answer, source, onProgress)
+    } catch (auditErr: any) {
+      console.warn(`Grounding verification failed for source ${source.id}:`, auditErr.message)
+      verification = {
+        grounded: false,
+        groundingScore: 0,
+        reasoning: `Grounding audit check could not be completed (${auditErr.message}). Payment withheld for safety.`
+      }
+    }
+
+    const passed = verification.grounded && verification.groundingScore >= 0.65
+
+    // Record the audit decision in the database ledger
+    await supabase.from('citation_decisions').insert({
+      session_id: sessionId,
+      source_id: source.id,
+      contribution_score: verification.groundingScore,
+      accepted: passed,
+      reasoning: passed
+        ? `[Grounding Verified: ${verification.groundingScore.toFixed(2)}] ${verification.reasoning}`
+        : `[Grounding Rejected: ${verification.groundingScore.toFixed(2)}] ${verification.reasoning}`
+    })
+
+    if (passed) {
+      verifiedSources.push(source)
+      if (onProgress) {
+        onProgress(`Citation verified (${verification.groundingScore.toFixed(2)}): ${source.title}. Grounding confirmed ✓`)
+      }
+    } else {
+      if (onProgress) {
+        onProgress(`Citation rejected (${verification.groundingScore.toFixed(2)}): ${source.title}. Insufficient grounding; payment withheld and budget refunded.`)
+      }
+    }
+  }
+
+  // 5. Execute Payments ONLY for Verified Citations
+  if (onProgress) {
+    onProgress(`Executing payments for ${verifiedSources.length} verified citation${verifiedSources.length === 1 ? '' : 's'}...`)
+  }
+
+  for (const source of verifiedSources) {
     try {
       const { payload } = await authorizePayment(sessionId, source.id, parseFloat(source.price_usdc), 'recipient_placeholder')
       
@@ -310,9 +317,10 @@ export async function runResearchAgent(
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'x-network': network,
           ...(cookieHeader ? { 'Cookie': cookieHeader } : {})
         },
-        body: JSON.stringify(payload)
+        body: JSON.stringify({ ...payload, network })
       })
 
       if (licenseRes.ok) {
@@ -344,7 +352,7 @@ export async function runResearchAgent(
     if (unspentBudget >= 0.05) {
       if (onProgress) onProgress(`Calculating budget... Unspent budget is $${unspentBudget.toFixed(2)}. Initiating refund...`)
       try {
-        await executeGatewayTransfer(walletAddress, unspentBudget.toFixed(2));
+        await executeGatewayTransfer(walletAddress, unspentBudget.toFixed(2), network);
         if (onProgress) onProgress(`Refunded $${unspentBudget.toFixed(2)} to your wallet.`)
       } catch (err: any) {
         console.error("Refund failed:", err);
@@ -366,7 +374,7 @@ export async function runResearchAgent(
     if (walletAddress) {
       if (onProgress) onProgress(`Research execution failed. Initiating full refund of $${initialBudget.toFixed(2)}...`)
       try {
-        await executeGatewayTransfer(walletAddress, initialBudget.toFixed(2));
+        await executeGatewayTransfer(walletAddress, initialBudget.toFixed(2), network);
         if (onProgress) onProgress(`Refunded $${initialBudget.toFixed(2)} to your wallet.`)
       } catch (refundErr: any) {
         console.error("Crash Refund failed:", refundErr);

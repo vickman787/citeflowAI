@@ -9,12 +9,21 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Missing user token' }, { status: 401 })
     }
 
-    if (!process.env.CIRCLE_API_KEY) {
-      return NextResponse.json({ error: 'Missing CIRCLE_API_KEY' }, { status: 500 })
+    const networkHeader = request.headers.get('x-network')
+    const { searchParams } = new URL(request.url)
+    const network = networkHeader || searchParams.get('network')
+    const isMainnet = network === 'arc-mainnet'
+
+    const apiKey = isMainnet
+      ? (process.env.CIRCLE_API_KEY_MAINNET || process.env.CIRCLE_API_KEY)
+      : process.env.CIRCLE_API_KEY
+
+    if (!apiKey) {
+      return NextResponse.json({ error: 'Missing Circle API Key' }, { status: 500 })
     }
 
     const circleClient = initiateUserControlledWalletsClient({
-      apiKey: process.env.CIRCLE_API_KEY,
+      apiKey,
     })
 
     const walletsRes = await circleClient.listWallets({ userToken })

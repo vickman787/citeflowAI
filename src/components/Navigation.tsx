@@ -7,6 +7,8 @@ import { Menu, X, LogIn, LogOut, Copy, Check, Droplet, Send, ChevronDown } from 
 import { createClient } from "@/utils/supabase/client";
 import SendModal from "./SendModal";
 import WalletModal from "./WalletModal";
+import NetworkSwitcher from "./NetworkSwitcher";
+import { useNetwork } from "@/context/NetworkContext";
 
 function LogoMark({ size = 28 }: { size?: number }) {
   return (
@@ -19,6 +21,7 @@ function LogoMark({ size = 28 }: { size?: number }) {
 }
 
 export function Navigation({ initialUser }: { initialUser?: any }) {
+  const { network, networkId } = useNetwork();
   const [isOpen, setIsOpen] = useState(false);
   const [user, setUser] = useState<any>(initialUser || null);
   const [walletAddress, setWalletAddress] = useState<string | null>(null);
@@ -31,6 +34,14 @@ export function Navigation({ initialUser }: { initialUser?: any }) {
   const pathname = usePathname();
   const router = useRouter();
   const supabase = createClient();
+
+  const getStored = (baseKey: string) => {
+    if (typeof window === 'undefined') return null;
+    const scoped = localStorage.getItem(`${baseKey}_${networkId}`);
+    if (scoped) return scoped;
+    if (networkId === 'arc-testnet') return localStorage.getItem(baseKey);
+    return null;
+  };
 
   // Close the wallet dropdown on outside click or Escape
   useEffect(() => {
@@ -56,29 +67,26 @@ export function Navigation({ initialUser }: { initialUser?: any }) {
     setUser(initialUser || null);
     
     // Automatically restore backend session if frontend has a wallet token but backend has no user
-    const token = localStorage.getItem('circle_user_token');
+    const token = getStored('circle_user_token');
     if (!initialUser && token) {
       fetch('/api/circle/wallet-login', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userToken: token }),
+        headers: { 
+          'Content-Type': 'application/json',
+          'x-network': networkId 
+        },
+        body: JSON.stringify({ userToken: token, network: networkId }),
       })
       .then(res => {
         if (res.ok) {
-          // Re-fetch the server-rendered user context (cookies now set) without
-          // a hard reload — avoids the full-page flash/flicker on reconnect.
           router.refresh();
         } else {
-          // Token is invalid/expired, log out locally
-          localStorage.removeItem('circle_wallet_address');
-          localStorage.removeItem('circle_user_token');
-          localStorage.removeItem('circle_encryption_key');
-          window.dispatchEvent(new Event('wallet_changed'));
+          handleWalletLogout();
         }
       })
       .catch(console.error);
     }
-  }, [initialUser, router]);
+  }, [initialUser, router, networkId]);
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
@@ -87,41 +95,50 @@ export function Navigation({ initialUser }: { initialUser?: any }) {
 
     const fetchBalance = async (token: string) => {
       try {
-        const res = await fetch('/api/circle/wallet', {
-          headers: { 'Authorization': `Bearer ${token}` }
-        })
+        const res = await fetch(`/api/circle/wallet?network=${networkId}`, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'x-network': networkId,
+          }
+        });
         if (res.ok) {
-          const data = await res.json()
-          if (data.balance) setWalletBalance(data.balance)
-        } else if (res.status === 401) {
-          // Circle userToken expired (they live ~60 min) — drop the stale local session
-          handleWalletLogout()
+          const data = await res.json();
+          setWalletBalance(data.balance || '0.00');
+        } else {
+          setWalletBalance(null);
+          if (res.status === 401 || res.status === 400) {
+            handleWalletLogout();
+          }
         }
-      } catch(e) {
-        console.warn('Wallet balance fetch failed:', e)
+      } catch (e) {
+        console.warn('Wallet balance fetch failed:', e);
+        setWalletBalance(null);
       }
-    }
+    };
 
     const initWallet = () => {
-      setWalletAddress(localStorage.getItem('circle_wallet_address'));
-      const token = localStorage.getItem('circle_user_token');
-      if (token) fetchBalance(token); else setWalletBalance(null);
-    }
+      setWalletBalance(null);
+      const addr = getStored('circle_wallet_address');
+      setWalletAddress(addr);
+      const token = getStored('circle_user_token');
+      if (token) fetchBalance(token);
+    };
 
     initWallet();
     
-    const handleStorage = () => initWallet();
-    const handleCustom = () => initWallet();
+    const handleUpdate = () => initWallet();
     
-    window.addEventListener('storage', handleStorage);
-    window.addEventListener('wallet_changed', handleCustom);
+    window.addEventListener('storage', handleUpdate);
+    window.addEventListener('wallet_changed', handleUpdate);
+    window.addEventListener('network_changed', handleUpdate);
 
     return () => {
       subscription.unsubscribe();
-      window.removeEventListener('storage', handleStorage);
-      window.removeEventListener('wallet_changed', handleCustom);
+      window.removeEventListener('storage', handleUpdate);
+      window.removeEventListener('wallet_changed', handleUpdate);
+      window.removeEventListener('network_changed', handleUpdate);
     };
-  }, [supabase]);
+  }, [supabase, networkId]);
 
   const handleLogout = async () => {
     handleWalletLogout();
@@ -132,9 +149,14 @@ export function Navigation({ initialUser }: { initialUser?: any }) {
   const handleWalletLogout = () => {
     setWalletAddress(null);
     setWalletBalance(null);
-    localStorage.removeItem('circle_wallet_address');
-    localStorage.removeItem('circle_user_token');
-    localStorage.removeItem('circle_encryption_key');
+    localStorage.removeItem(`circle_wallet_address_${networkId}`);
+    localStorage.removeItem(`circle_user_token_${networkId}`);
+    localStorage.removeItem(`circle_encryption_key_${networkId}`);
+    if (networkId === 'arc-testnet') {
+      localStorage.removeItem('circle_wallet_address');
+      localStorage.removeItem('circle_user_token');
+      localStorage.removeItem('circle_encryption_key');
+    }
     window.dispatchEvent(new Event('wallet_changed'));
   };
 
@@ -199,8 +221,10 @@ export function Navigation({ initialUser }: { initialUser?: any }) {
           })}
         </div>
 
-        {/* Wallet — pushed to the far right */}
-        <div className="hidden md:flex items-center ml-auto flex-shrink-0">
+        {/* Network Switcher & Wallet — pushed to the far right */}
+        <div className="hidden md:flex items-center ml-auto gap-3 flex-shrink-0">
+          <NetworkSwitcher />
+
           {walletAddress ? (
             <div className="relative" ref={walletMenuRef}>
               <button
@@ -227,7 +251,9 @@ export function Navigation({ initialUser }: { initialUser?: any }) {
                   className="absolute right-0 top-[calc(100%+6px)] w-56 bg-[var(--color-panel)] border border-[var(--color-border-strong)] rounded-[2px] shadow-[0_12px_40px_rgba(0,0,0,0.6)] z-50 font-mono text-sm overflow-hidden"
                 >
                   <div className="px-4 py-3 border-b border-[var(--color-border-subtle)]">
-                    <div className="text-[0.6rem] uppercase tracking-[0.16em] text-[var(--color-faint)] mb-1">connected wallet</div>
+                    <div className="text-[0.6rem] uppercase tracking-[0.16em] text-[var(--color-faint)] mb-1">
+                      connected wallet ({network.shortName})
+                    </div>
                     <div className="text-xs text-[var(--color-soft-ink)] break-all">{walletAddress}</div>
                   </div>
                   <button
@@ -248,17 +274,19 @@ export function Navigation({ initialUser }: { initialUser?: any }) {
                     <Send size={14} />
                     send usdc
                   </button>
-                  <a
-                    role="menuitem"
-                    href="https://faucet.circle.com/"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    onClick={() => setIsWalletMenuOpen(false)}
-                    className="w-full flex items-center gap-3 px-4 py-2.5 text-[var(--color-ink)] hover:bg-[var(--color-panel-deep)] hover:text-[var(--color-signal-green)] transition-colors"
-                  >
-                    <Droplet size={14} />
-                    faucet
-                  </a>
+                  {network.hasFaucet && (
+                    <a
+                      role="menuitem"
+                      href={network.faucetUrl || "https://faucet.circle.com/"}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={() => setIsWalletMenuOpen(false)}
+                      className="w-full flex items-center gap-3 px-4 py-2.5 text-[var(--color-ink)] hover:bg-[var(--color-panel-deep)] hover:text-[var(--color-signal-green)] transition-colors"
+                    >
+                      <Droplet size={14} />
+                      faucet
+                    </a>
+                  )}
                   <button
                     type="button"
                     role="menuitem"
@@ -294,6 +322,10 @@ export function Navigation({ initialUser }: { initialUser?: any }) {
       {/* Mobile Nav Menu */}
       {isOpen && (
         <div className="md:hidden absolute top-16 left-0 w-full bg-[var(--color-panel)] border-b border-[var(--color-border-subtle)] px-6 py-4 flex flex-col gap-4 shadow-lg z-40">
+          <div className="pb-2 border-b border-[var(--color-border-subtle)]">
+            <NetworkSwitcher />
+          </div>
+
           {navLinks.map((link) => (
             <Link
               key={link.href}
@@ -322,7 +354,9 @@ export function Navigation({ initialUser }: { initialUser?: any }) {
             <>
               <div className="h-px w-full bg-[var(--color-border-subtle)] my-2"></div>
               <div className="flex flex-col gap-3 py-2">
-                <div className="text-xs uppercase tracking-wider font-bold font-mono text-[var(--color-faint)]">Connected Wallet</div>
+                <div className="text-xs uppercase tracking-wider font-bold font-mono text-[var(--color-faint)]">
+                  Connected Wallet ({network.shortName})
+                </div>
                 <div className="flex items-center justify-between bg-[var(--color-panel-deep)] px-3 py-2 border border-[var(--color-border-strong)] rounded-[2px]">
                   <div className="flex flex-col gap-1">
                     <div className="flex items-center gap-2 font-mono text-sm text-[var(--color-soft-ink)]">
@@ -342,15 +376,17 @@ export function Navigation({ initialUser }: { initialUser?: any }) {
                     >
                       {isCopied ? <Check size={16} className="text-[var(--color-signal-green)]" /> : <Copy size={16} />}
                     </button>
-                    <a
-                      href="https://faucet.circle.com/"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="p-2 hover:text-[var(--color-signal-green)] rounded transition-colors"
-                      title="Get Testnet USDC from Circle Faucet"
-                    >
-                      <Droplet size={16} />
-                    </a>
+                    {network.hasFaucet && (
+                      <a
+                        href={network.faucetUrl || "https://faucet.circle.com/"}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="p-2 hover:text-[var(--color-signal-green)] rounded transition-colors"
+                        title="Get Testnet USDC from Circle Faucet"
+                      >
+                        <Droplet size={16} />
+                      </a>
+                    )}
                     <button
                       type="button"
                       onClick={() => setIsSendModalOpen(true)}
@@ -382,8 +418,8 @@ export function Navigation({ initialUser }: { initialUser?: any }) {
         <SendModal 
           isOpen={isSendModalOpen} 
           onClose={() => setIsSendModalOpen(false)} 
-          userToken={typeof window !== 'undefined' ? localStorage.getItem('circle_user_token') || '' : ''}
-          encryptionKey={typeof window !== 'undefined' ? localStorage.getItem('circle_encryption_key') || '' : ''}
+          userToken={getStored('circle_user_token') || ''}
+          encryptionKey={getStored('circle_encryption_key') || ''}
           onSuccess={() => {
             setIsSendModalOpen(false);
             window.dispatchEvent(new Event('wallet_changed'));
@@ -396,12 +432,15 @@ export function Navigation({ initialUser }: { initialUser?: any }) {
         onClose={() => setIsWalletModalOpen(false)} 
         onSuccess={(address, token, encKey) => {
           setIsWalletModalOpen(false);
-          localStorage.setItem('circle_wallet_address', address);
-          localStorage.setItem('circle_user_token', token);
-          localStorage.setItem('circle_encryption_key', encKey);
+          localStorage.setItem(`circle_wallet_address_${networkId}`, address);
+          localStorage.setItem(`circle_user_token_${networkId}`, token);
+          localStorage.setItem(`circle_encryption_key_${networkId}`, encKey);
+          if (networkId === 'arc-testnet') {
+            localStorage.setItem('circle_wallet_address', address);
+            localStorage.setItem('circle_user_token', token);
+            localStorage.setItem('circle_encryption_key', encKey);
+          }
           window.dispatchEvent(new Event('wallet_changed'));
-          // Re-fetch the server-rendered user context (cookies now set) without
-          // a hard reload — avoids the full-page flash/flicker on connect.
           router.refresh();
         }}
       />

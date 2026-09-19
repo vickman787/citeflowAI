@@ -4,14 +4,19 @@ import { initiateUserControlledWalletsClient } from '@circle-fin/user-controlled
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { userToken, walletId, amount, destinationAddress } = body
+    const { userToken, walletId, amount, destinationAddress, network } = body
 
-    if (!process.env.CIRCLE_API_KEY) {
-      return NextResponse.json({ error: 'Missing CIRCLE_API_KEY' }, { status: 500 })
+    const isMainnet = network === 'arc-mainnet'
+    const apiKey = isMainnet
+      ? (process.env.CIRCLE_API_KEY_MAINNET || process.env.CIRCLE_API_KEY)
+      : process.env.CIRCLE_API_KEY
+
+    if (!apiKey) {
+      return NextResponse.json({ error: 'Missing Circle API Key' }, { status: 500 })
     }
 
     const circleClient = initiateUserControlledWalletsClient({
-      apiKey: process.env.CIRCLE_API_KEY,
+      apiKey,
     })
 
     const idempotencyKey = crypto.randomUUID()
@@ -42,7 +47,11 @@ export async function POST(request: NextRequest) {
     const targetTokenId = usdcToken?.token?.id || nativeToken?.token?.id
 
     if (!targetTokenId) {
-      return NextResponse.json({ error: 'No tokens available to transfer. Please fund the wallet via Faucet.' }, { status: 400 })
+      return NextResponse.json({ 
+        error: isMainnet 
+          ? 'No tokens available to transfer. Please fund your Arc Mainnet wallet.' 
+          : 'No tokens available to transfer. Please fund the wallet via Faucet.' 
+      }, { status: 400 })
     }
 
     const res = await circleClient.createTransaction({

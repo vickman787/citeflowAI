@@ -1,17 +1,66 @@
+"use client";
+
+import { useEffect, useState } from 'react'
 import type { NetworkStats } from '@/lib/stats'
+import { useNetwork } from '@/context/NetworkContext'
+import type { NetworkId } from '@/lib/network'
 
 // Terminal ticker tape — scrolls live ledger stats across the top of every page.
-// Pure CSS animation (no client JS); the track is rendered twice for a seamless loop.
+// Pure CSS animation; the track is rendered twice for a seamless loop.
 export default function StatsTicker({ stats }: { stats: NetworkStats }) {
+  const { network, networkId } = useNetwork();
+  const [data, setData] = useState<{ networkId: NetworkId; stats: NetworkStats } | null>(null);
+
+  useEffect(() => {
+    let isCancelled = false;
+
+    async function fetchStats() {
+      try {
+        const res = await fetch(`/api/stats?network=${networkId}`);
+        if (res.ok) {
+          const json = await res.json();
+          if (!isCancelled) {
+            setData({
+              networkId,
+              stats: {
+                answersServed: json.answersServed || 0,
+                paidToCreators: json.paidToCreators || 0,
+                avgAnswerCost: json.avgAnswerCost || 0,
+                registeredSources: json.registeredSources || 0,
+              },
+            });
+          }
+        }
+      } catch (err) {
+        console.warn('Failed to fetch ticker stats:', err);
+      }
+    }
+
+    fetchStats();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [networkId]);
+
+  // If we already fetched stats for this network, use them.
+  // Otherwise, guard: Mainnet must NEVER show testnet SSR data (fallback to 0s),
+  // while Testnet can safely display the SSR stats.
+  const effectiveStats: NetworkStats = data && data.networkId === networkId
+    ? data.stats
+    : network.isMainnet
+      ? { answersServed: 0, paidToCreators: 0, avgAnswerCost: 0, registeredSources: 0 }
+      : stats;
+
   const items = [
     <span key="net" className="flex items-center gap-2">
       <span className="glow-dot"></span>
-      <span className="text-[var(--color-signal-green)]">ARC-TESTNET · LIVE</span>
+      <span className="text-[var(--color-signal-green)]">{network.badge} · LIVE</span>
     </span>,
-    <span key="ans">ANSWERS SERVED: <b className="text-[var(--color-ink)]">{stats.answersServed.toLocaleString('en-US')}</b></span>,
-    <span key="paid">PAID TO CREATORS: <b className="text-[var(--color-signal-green)]">${stats.paidToCreators.toFixed(2)} USDC</b></span>,
-    <span key="avg">AVG ANSWER COST: <b className="text-[var(--color-ink)]">${stats.avgAnswerCost.toFixed(2)}</b></span>,
-    <span key="src">REGISTERED SOURCES: <b className="text-[var(--color-ink)]">{stats.registeredSources.toLocaleString('en-US')}</b></span>,
+    <span key="ans">ANSWERS SERVED: <b className="text-[var(--color-ink)]">{effectiveStats.answersServed.toLocaleString('en-US')}</b></span>,
+    <span key="paid">PAID TO CREATORS: <b className="text-[var(--color-signal-green)]">${effectiveStats.paidToCreators.toFixed(2)} USDC</b></span>,
+    <span key="avg">AVG ANSWER COST: <b className="text-[var(--color-ink)]">${effectiveStats.avgAnswerCost.toFixed(2)}</b></span>,
+    <span key="src">REGISTERED SOURCES: <b className="text-[var(--color-ink)]">{effectiveStats.registeredSources.toLocaleString('en-US')}</b></span>,
     <span key="ppp">PAY-PER-PROMPT · NO SUBSCRIPTIONS</span>,
     <span key="w3s">CIRCLE W3S · USDC SETTLEMENTS</span>,
   ]

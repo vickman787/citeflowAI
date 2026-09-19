@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Victor Chukuwudi Ezenwa - Software Engineer</title>
+  <style>
+    @page { size: A4; margin: 0; }
+    :root { --ink: #17212b; --muted: #52606d; --accent: #0b6670; --line: #d7e0e4; --paper: #fff; }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; background: #edf1f2; color: var(--ink); }
+    body { font-family: Arial, Helvetica, sans-serif; font-size: 9.5pt; line-height: 1.38; }
+    .page { width: 210mm; min-height: 297mm; margin: 0 auto; padding: 15mm 17mm 13mm; background: var(--paper); }
+    header { border-bottom: 2px solid var(--accent); padding-bottom: 10px; }
+    h1 { margin: 0; font-size: 25pt; line-height: 1.05; letter-spacing: .2px; }
+    .role { margin: 5px 0 9px; color: var(--accent); font-size: 12pt; font-weight: 700; }
+    .contact { display: flex; flex-wrap: wrap; gap: 4px 13px; color: var(--muted); font-size: 8.5pt; }
+    a { color: inherit; text-decoration: none; }
+    .intro { margin: 13px 0 0; color: #283640; }
+    .columns { display: grid; grid-template-columns: 1.6fr 1fr; gap: 22px; margin-top: 15px; }
+    section { margin-bottom: 14px; }
+    h2 { margin: 0 0 7px; padding-bottom: 4px; border-bottom: 1px solid var(--line); color: var(--accent); font-size: 10.5pt; text-transform: uppercase; letter-spacing: 1.1px; }
+    h3 { margin: 0; font-size: 10.5pt; }
+    .meta { margin: 2px 0 7px; color: var(--muted); font-size: 8.7pt; }
+    ul { margin: 5px 0 0; padding-left: 16px; }
+    li { margin: 0 0 4px; }
+    .skills { display: grid; gap: 5px; }
+    .skill strong { color: var(--ink); }
+    .skill { color: var(--muted); }
+    .education { margin-bottom: 11px; }
+    .education strong { display: block; }
+    .small { color: var(--muted); font-size: 8.8pt; }
+    footer { margin-top: 5px; color: var(--muted); font-size: 8pt; }
+    @media print { html, body { background: #fff; } .page { margin: 0; } }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <header>
+      <h1>Victor Chukuwudi Ezenwa</h1>
+      <div class="role">Software Engineer | Agentic Search Systems</div>
+      <div class="contact">
+        <span>Nigeria</span><span>+234 816 223 8752</span><span><a href="mailto:ezenwavictor788@gmail.com">ezenwavictor788@gmail.com</a></span>
+        <span><a href="https://www.linkedin.com/in/victor-ezenwa-10b01a284/">LinkedIn</a></span>
+        <span><a href="https://github.com/vickman787">GitHub / vickman787</a></span>
+        <span><a href="https://vickman.pages.dev/">Portfolio</a></span>
+      </div>
+    </header>
+
+    <p class="intro">Software engineer focused on AI-powered research systems, agentic workflows, semantic retrieval, and reliable API integrations. Builds practical systems that connect grounded answers, source attribution, and machine-to-machine payments.</p>
+
+    <div class="columns">
+      <div>
+        <section>
+          <h2>Experience</h2>
+          <h3>Founder &amp; Software Engineer, CiteFlowAI</h3>
+          <div class="meta">Independent project | Arc Testnet | 2026 - Present</div>
+          <ul>
+            <li>Built a Web3-native AI research agent that generates grounded answers from registered, ownership-verified sources.</li>
+            <li>Designed a retrieval-augmented generation pipeline using embeddings and semantic similarity search to identify relevant source content.</li>
+            <li>Developed the agent orchestration flow for source evaluation, citation selection, structured responses, and research ledger updates.</li>
+            <li>Implemented a USDC pay-per-citation model that compensates creators when their work contributes to an answer and refunds unused user budget.</li>
+            <li>Integrated Circle Wallets for email-based onboarding, x402 for agent-payable HTTP research, and Circle Gateway for gasless batched payments.</li>
+            <li>Created an MCP server exposing a <strong>citeflow_research</strong> tool for compatible AI clients and coding agents.</li>
+            <li>Added ownership verification, server-side payment validation, replay protection, authenticated routes, and safeguards against unauthorized research execution.</li>
+            <li>Tested agent-payment workflows with Circle Agent Wallet, Claude, Codex, Google Antigravity, MCP clients, and direct terminal scripts; the live system has served 101 answers, indexed 19 sources, and paid $15.78 USDC to creators.</li>
+          </ul>
+        </section>
+        <section>
+          <h2>Engineering Focus</h2>
+          <ul>
+            <li>Agentic search and retrieval quality</li>
+            <li>LLM orchestration and structured outputs</li>
+            <li>Tool-using agents and machine-to-machine APIs</li>
+            <li>Source attribution and trustworthy AI systems</li>
+          </ul>
+        </section>
+      </div>
+      <aside>
+        <section>
+          <h2>Technical Skills</h2>
+          <div class="skills">
+            <div class="skill"><strong>Languages:</strong> TypeScript, JavaScript, SQL</div>
+            <div class="skill"><strong>Frontend:</strong> React, Next.js, Tailwind CSS</div>
+            <div class="skill"><strong>Backend:</strong> Node.js, REST APIs, server-side application logic</div>
+            <div class="skill"><strong>AI:</strong> RAG, embeddings, semantic search, LLM orchestration, model fallbacks</div>
+            <div class="skill"><strong>Data:</strong> Supabase, PostgreSQL, pgvector, database policies, RLS</div>
+            <div class="skill"><strong>Agents:</strong> MCP, x402, Circle Agent Wallets, Circle Gateway</div>
+            <div class="skill"><strong>Payments:</strong> Arc Testnet, USDC, Circle Wallets, gasless nanopayments</div>
+            <div class="skill"><strong>Engineering:</strong> Git, API integration, authentication, payment verification, debugging</div>
+          </div>
+        </section>
+        <section>
+          <h2>Education</h2>
+          <div class="education"><strong>Bachelor of Engineering</strong><span class="small">Enugu State University of Science and Technology<br>Nigeria | 2017 - 2022</span></div>
+        </section>
+        <section>
+          <h2>Languages</h2>
+          <div class="small">English<br>Igbo</div>
+        </section>
+        <section>
+          <h2>Certifications</h2>
+          <div class="small">None listed</div>
+        </section>
+      </aside>
+    </div>
+    <footer>References and additional project details available upon request.</footer>
+  </main>
+</body>
+</html>

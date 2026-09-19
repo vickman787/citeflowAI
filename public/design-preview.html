@@ -1,0 +1,406 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CiteFlow — Design Preview</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&family=JetBrains+Mono:wght@400;700&family=Merriweather:wght@300;400;700;900&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --paper: #F3F0E8;
+    --ink: #151713;
+    --soft-ink: #34382F;
+    --olive: #69705A;
+    --green: #B9F34A;
+    --rust: #C65A38;
+    --border: rgba(21,23,19,.16);
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--paper); color: var(--ink);
+    font-family: Inter, sans-serif; -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 1200px; margin: 0 auto; padding: 3rem 1.5rem 6rem; }
+  h1 { font-family: Merriweather, serif; font-size: 2.4rem; margin: 0 0 .3rem; }
+  .sub { color: var(--olive); margin-bottom: 3rem; }
+  h2 {
+    font-family: Merriweather, serif; font-size: 1.5rem;
+    border-bottom: 1px solid var(--border); padding-bottom: .6rem; margin: 4rem 0 1.5rem;
+  }
+  .hint { font-size: .85rem; color: var(--olive); margin: -0.8rem 0 1.5rem; }
+  .grid { display: grid; gap: 1.5rem; }
+  .g3 { grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); }
+  .g2 { grid-template-columns: repeat(auto-fit, minmax(420px, 1fr)); }
+  .card {
+    background: #fff; border: 1px solid var(--border); border-radius: 2px; padding: 1.5rem;
+  }
+  .pick {
+    display: inline-block; background: var(--ink); color: var(--green);
+    font-family: "JetBrains Mono", monospace; font-size: .75rem; font-weight: 700;
+    padding: .25rem .6rem; border-radius: 2px; letter-spacing: .1em; margin-bottom: .8rem;
+  }
+  .card h3 { margin: 0 0 .3rem; font-size: 1.05rem; }
+  .card p.desc { font-size: .85rem; color: var(--soft-ink); margin: 0 0 1.2rem; min-height: 3.2em; }
+  .ctx { display: flex; flex-direction: column; gap: .8rem; }
+  .row {
+    display: flex; align-items: center; gap: 1rem;
+    border: 1px dashed var(--border); border-radius: 2px; padding: .8rem 1rem;
+  }
+  .row.dark { background: var(--ink); border-style: solid; }
+  .rowlabel { font-family: "JetBrains Mono", monospace; font-size: .65rem; color: var(--olive); width: 74px; flex-shrink: 0; text-transform: uppercase; letter-spacing: .08em; }
+  .row.dark .rowlabel { color: var(--olive); }
+  .mark { color: var(--ink); flex-shrink: 0; }
+  .row.dark .mark { color: var(--paper); }
+  .wordmark { font-weight: 700; font-size: 1.15rem; letter-spacing: -.02em; }
+  .row.dark .wordmark { color: var(--paper); }
+  .favrow { display: flex; gap: .6rem; align-items: center; }
+  .favtile { width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; border: 1px solid var(--border); border-radius: 4px; background: #fff; }
+  .favtile.d { background: var(--ink); }
+
+  /* ---- terminal samples ---- */
+  .term { font-family: "JetBrains Mono", monospace; font-size: .8rem; border-radius: 2px; }
+  .term .head { display: flex; align-items: center; gap: .6rem; padding: .8rem 1rem; border-bottom: 1px solid var(--border); font-weight: 700; letter-spacing: .15em; font-size: .65rem; text-transform: uppercase; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); }
+  .term .body { padding: 1rem; display: flex; flex-direction: column; gap: .55rem; }
+  .ln { display: flex; gap: .9rem; }
+  .num { color: var(--olive); user-select: none; }
+  .term.current { background: #fff; border: 1px solid var(--border); color: var(--ink); }
+  .term.inkmode { background: var(--ink); border: 1px solid var(--ink); color: var(--paper); }
+  .term.inkmode .head { border-color: rgba(243,240,232,.15); color: var(--paper); }
+  .term.inkmode .num { color: #5a6050; }
+  .ok { color: var(--green); } .term.current .ok { color: #5a8a00; }
+  .warn { color: var(--rust); }
+  .dim { color: var(--olive); } .term.inkmode .dim { color: #9aa287; }
+  .cursor { display: inline-block; width: 8px; height: 15px; background: var(--green); animation: blink 1s steps(1) infinite; vertical-align: text-bottom; }
+  @keyframes blink { 50% { opacity: 0; } }
+
+  /* ---- answer samples ---- */
+  .answer.current { font-family: Inter, sans-serif; font-size: 1.02rem; line-height: 1.6; white-space: pre-wrap; }
+  .answer.editorial { font-family: Merriweather, serif; font-size: 1.02rem; line-height: 1.85; color: var(--soft-ink); }
+  .answer.editorial .dropcap {
+    float: left; font-family: Merriweather, serif; font-weight: 900; font-size: 3.6rem;
+    line-height: .85; padding: .35rem .6rem 0 0; color: var(--ink);
+  }
+  sup.cite { font-family: "JetBrains Mono", monospace; font-size: .65em; color: var(--ink); background: var(--green); padding: 0 .3em; border-radius: 2px; margin-left: .15em; }
+  .footnotes { border-top: 1px solid var(--border); margin-top: 1.4rem; padding-top: 1rem; font-family: "JetBrains Mono", monospace; font-size: .78rem; color: var(--olive); display: flex; flex-direction: column; gap: .5rem; }
+  .footnotes b { color: var(--ink); font-weight: 700; }
+  .settle { background: var(--green); color: var(--ink); padding: .05rem .45rem; border-radius: 2px; font-weight: 700; font-size: .68rem; letter-spacing: .08em; }
+
+  /* ---- component samples ---- */
+  .btn { display: inline-flex; align-items: center; justify-content: center; min-height: 40px; padding: 0 1.3rem; font-size: .85rem; font-weight: 500; cursor: pointer; border: 1px solid var(--ink); font-family: Inter, sans-serif; }
+  .b-primary { background: var(--ink); color: var(--paper); }
+  .b-highlight { background: var(--green); color: var(--ink); }
+  .b-secondary { background: transparent; border-color: var(--border); color: var(--ink); }
+  .r2 { border-radius: 2px; } .r8 { border-radius: 8px; } .r4 { border-radius: 4px; }
+  .comprow { display: flex; gap: .8rem; flex-wrap: wrap; align-items: center; margin-bottom: 1rem; }
+  .cardtitle-current { font-family: Inter, sans-serif; font-weight: 700; font-size: 1.1rem; }
+  .cardtitle-serif { font-family: Merriweather, serif; font-weight: 700; font-size: 1.1rem; }
+  .caption { font-family: "JetBrains Mono", monospace; font-size: .65rem; text-transform: uppercase; letter-spacing: .1em; color: var(--olive); margin: 0 0 .6rem; }
+  .rec { border: 2px solid var(--ink); position: relative; }
+  .rec::after {
+    content: "RECOMMENDED"; position: absolute; top: -11px; right: 12px;
+    background: var(--green); color: var(--ink); font-family: "JetBrains Mono", monospace;
+    font-size: .6rem; font-weight: 700; letter-spacing: .12em; padding: .15rem .5rem; border-radius: 2px;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>CiteFlow — Design Preview</h1>
+  <div class="sub">Pick a logo (A / B / C) and say yes/no to each UI change (1–4). Everything stays in the existing Paper &amp; Ink palette.</div>
+
+  <!-- ============ LOGOS ============ -->
+  <h2>Logo options</h2>
+  <p class="hint">Each shown at hero size, in the light nav, on the dark testnet banner, and at favicon size. All are flat SVG in brand ink — they invert automatically on dark surfaces (the current JPG can't).</p>
+
+  <div class="grid g3">
+
+    <!-- OPTION A -->
+    <div class="card rec">
+      <span class="pick">OPTION A</span>
+      <h3>The Citation</h3>
+      <p class="desc">A serif closing-quote pair — the universal symbol of citing someone's words — with a signal-green square: the "payment settled" pixel.</p>
+      <div class="ctx">
+        <div class="row" style="justify-content:center; padding:1.4rem;">
+          <svg class="mark" width="84" height="84" viewBox="0 0 64 64">
+            <text x="30" y="62" font-family="Merriweather, serif" font-weight="900" font-size="82" text-anchor="middle" fill="currentColor">&#8221;</text>
+            <rect x="50" y="46" width="11" height="11" fill="#B9F34A"/>
+          </svg>
+        </div>
+        <div class="row">
+          <span class="rowlabel">nav 32px</span>
+          <svg class="mark" width="30" height="30" viewBox="0 0 64 64"><text x="30" y="62" font-family="Merriweather, serif" font-weight="900" font-size="82" text-anchor="middle" fill="currentColor">&#8221;</text><rect x="50" y="46" width="11" height="11" fill="#B9F34A"/></svg>
+          <span class="wordmark">CiteFlow<span style="color:var(--olive)">AI</span></span>
+        </div>
+        <div class="row dark">
+          <span class="rowlabel">on dark</span>
+          <svg class="mark" width="30" height="30" viewBox="0 0 64 64"><text x="30" y="62" font-family="Merriweather, serif" font-weight="900" font-size="82" text-anchor="middle" fill="currentColor">&#8221;</text><rect x="50" y="46" width="11" height="11" fill="#B9F34A"/></svg>
+          <span class="wordmark">CiteFlow<span style="color:var(--green)">AI</span></span>
+        </div>
+        <div class="row">
+          <span class="rowlabel">favicon</span>
+          <div class="favrow">
+            <div class="favtile"><svg width="18" height="18" viewBox="0 0 64 64"><text x="30" y="62" font-family="Merriweather, serif" font-weight="900" font-size="82" text-anchor="middle" fill="#151713">&#8221;</text><rect x="50" y="46" width="11" height="11" fill="#B9F34A"/></svg></div>
+            <div class="favtile d"><svg width="18" height="18" viewBox="0 0 64 64"><text x="30" y="62" font-family="Merriweather, serif" font-weight="900" font-size="82" text-anchor="middle" fill="#F3F0E8">&#8221;</text><rect x="50" y="46" width="11" height="11" fill="#B9F34A"/></svg></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- OPTION B -->
+    <div class="card">
+      <span class="pick">OPTION B</span>
+      <h3>The Footnote</h3>
+      <p class="desc">An ink tile with a serif asterisk — the footnote reference mark — and a green settlement dot. Reads as an app icon out of the box.</p>
+      <div class="ctx">
+        <div class="row" style="justify-content:center; padding:1.4rem;">
+          <svg width="84" height="84" viewBox="0 0 64 64">
+            <rect x="2" y="2" width="60" height="60" rx="10" fill="#151713"/>
+            <text x="32" y="66" font-family="Merriweather, serif" font-weight="900" font-size="72" text-anchor="middle" fill="#F3F0E8">*</text>
+            <circle cx="50" cy="14" r="6" fill="#B9F34A"/>
+          </svg>
+        </div>
+        <div class="row">
+          <span class="rowlabel">nav 32px</span>
+          <svg width="30" height="30" viewBox="0 0 64 64"><rect x="2" y="2" width="60" height="60" rx="10" fill="#151713"/><text x="32" y="66" font-family="Merriweather, serif" font-weight="900" font-size="72" text-anchor="middle" fill="#F3F0E8">*</text><circle cx="50" cy="14" r="6" fill="#B9F34A"/></svg>
+          <span class="wordmark">CiteFlow<span style="color:var(--olive)">AI</span></span>
+        </div>
+        <div class="row dark">
+          <span class="rowlabel">on dark</span>
+          <svg width="30" height="30" viewBox="0 0 64 64"><rect x="2" y="2" width="60" height="60" rx="10" fill="#F3F0E8"/><text x="32" y="66" font-family="Merriweather, serif" font-weight="900" font-size="72" text-anchor="middle" fill="#151713">*</text><circle cx="50" cy="14" r="6" fill="#B9F34A"/></svg>
+          <span class="wordmark">CiteFlow<span style="color:var(--green)">AI</span></span>
+        </div>
+        <div class="row">
+          <span class="rowlabel">favicon</span>
+          <div class="favrow">
+            <div class="favtile"><svg width="18" height="18" viewBox="0 0 64 64"><rect x="2" y="2" width="60" height="60" rx="10" fill="#151713"/><text x="32" y="66" font-family="Merriweather, serif" font-weight="900" font-size="72" text-anchor="middle" fill="#F3F0E8">*</text><circle cx="50" cy="14" r="6" fill="#B9F34A"/></svg></div>
+            <div class="favtile d"><svg width="18" height="18" viewBox="0 0 64 64"><rect x="2" y="2" width="60" height="60" rx="10" fill="#F3F0E8"/><text x="32" y="66" font-family="Merriweather, serif" font-weight="900" font-size="72" text-anchor="middle" fill="#151713">*</text><circle cx="50" cy="14" r="6" fill="#B9F34A"/></svg></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- OPTION C -->
+    <div class="card">
+      <span class="pick">OPTION C</span>
+      <h3>The Pilcrow</h3>
+      <p class="desc">A serif paragraph mark — pure editorial heritage — sitting on a signal-green flow bar: content above, payment stream below.</p>
+      <div class="ctx">
+        <div class="row" style="justify-content:center; padding:1.4rem;">
+          <svg class="mark" width="84" height="84" viewBox="0 0 64 64">
+            <text x="32" y="48" font-family="Merriweather, serif" font-weight="900" font-size="56" text-anchor="middle" fill="currentColor">&#182;</text>
+            <rect x="12" y="55" width="40" height="7" fill="#B9F34A"/>
+          </svg>
+        </div>
+        <div class="row">
+          <span class="rowlabel">nav 32px</span>
+          <svg class="mark" width="30" height="30" viewBox="0 0 64 64"><text x="32" y="48" font-family="Merriweather, serif" font-weight="900" font-size="56" text-anchor="middle" fill="currentColor">&#182;</text><rect x="12" y="55" width="40" height="7" fill="#B9F34A"/></svg>
+          <span class="wordmark">CiteFlow<span style="color:var(--olive)">AI</span></span>
+        </div>
+        <div class="row dark">
+          <span class="rowlabel">on dark</span>
+          <svg class="mark" width="30" height="30" viewBox="0 0 64 64"><text x="32" y="48" font-family="Merriweather, serif" font-weight="900" font-size="56" text-anchor="middle" fill="currentColor">&#182;</text><rect x="12" y="55" width="40" height="7" fill="#B9F34A"/></svg>
+          <span class="wordmark">CiteFlow<span style="color:var(--green)">AI</span></span>
+        </div>
+        <div class="row">
+          <span class="rowlabel">favicon</span>
+          <div class="favrow">
+            <div class="favtile"><svg width="18" height="18" viewBox="0 0 64 64"><text x="32" y="48" font-family="Merriweather, serif" font-weight="900" font-size="56" text-anchor="middle" fill="#151713">&#182;</text><rect x="12" y="55" width="40" height="7" fill="#B9F34A"/></svg></div>
+            <div class="favtile d"><svg width="18" height="18" viewBox="0 0 64 64"><text x="32" y="48" font-family="Merriweather, serif" font-weight="900" font-size="56" text-anchor="middle" fill="#F3F0E8">&#182;</text><rect x="12" y="55" width="40" height="7" fill="#B9F34A"/></svg></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ TERMINAL ============ -->
+  <h2>Change 1 — Agent terminal: ink mode</h2>
+  <p class="hint">Your demo's hero moment. Left: current. Right: proposed — true terminal feel, color-coded events (green = settled, rust = failed, olive = evaluating).</p>
+  <div class="grid g2">
+    <div>
+      <p class="caption">Current</p>
+      <div class="term current">
+        <div class="head"><span class="dot"></span> AGENT TERMINAL // LIVE EXECUTION</div>
+        <div class="body">
+          <div class="ln"><span class="num">[001]</span><span>Agent 1 initialized. Connecting to Treasury...</span></div>
+          <div class="ln"><span class="num">[002]</span><span>Evaluating relevance of: An Incomplete Guide to Rollups</span></div>
+          <div class="ln"><span class="num">[003]</span><span>Payment Settled. Gateway Batch ID: de979faf-db16</span></div>
+          <div class="ln"><span class="num">[004]</span><span>Payment execution failed for Frontiers Blockchain.</span></div>
+          <div class="ln"><span class="num">[005]</span><span style="opacity:.5">_</span></div>
+        </div>
+      </div>
+    </div>
+    <div>
+      <p class="caption">Proposed — ink terminal</p>
+      <div class="term inkmode">
+        <div class="head"><span class="dot"></span> AGENT TERMINAL // LIVE EXECUTION</div>
+        <div class="body">
+          <div class="ln"><span class="num">[001]</span><span class="dim">Agent 1 initialized. Connecting to Treasury...</span></div>
+          <div class="ln"><span class="num">[002]</span><span class="dim">Evaluating relevance of: An Incomplete Guide to Rollups</span></div>
+          <div class="ln"><span class="num">[003]</span><span class="ok">✓ Payment Settled. Gateway Batch ID: de979faf-db16</span></div>
+          <div class="ln"><span class="num">[004]</span><span class="warn">✗ Payment execution failed for Frontiers Blockchain.</span></div>
+          <div class="ln"><span class="num">[005]</span><span class="cursor"></span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ ANSWER ============ -->
+  <h2>Change 2 — Grounded answer: editorial typography</h2>
+  <p class="hint">Left: current (plain sans, raw text). Right: proposed — serif body, drop cap, and inline citation markers that link the prose to the paid sources. The footnote ledger makes "this sentence cost $0.50" visible — that's the product.</p>
+  <div class="grid g2">
+    <div>
+      <p class="caption">Current</p>
+      <div class="card">
+        <div class="cardtitle-current" style="border-bottom:1px solid var(--border); padding-bottom:.7rem; margin-bottom:1rem;">Grounded Answer</div>
+        <div class="answer current">According to Vitalik Buterin's 2021 blog post, optimistic rollups keep track of the entire history of state roots and the hash of each batch. If anyone discovers an incorrect post-state root, they can publish a fraud proof to chain. ZK rollups instead include a ZK-SNARK with every batch, proving the post-state root is correct.</div>
+      </div>
+    </div>
+    <div>
+      <p class="caption">Proposed — editorial</p>
+      <div class="card">
+        <div class="cardtitle-serif" style="border-bottom:1px solid var(--border); padding-bottom:.7rem; margin-bottom:1.2rem;">Grounded Answer</div>
+        <div class="answer editorial">
+          <span class="dropcap">A</span>ccording to Vitalik Buterin's 2021 blog post, optimistic rollups keep track of the entire history of state roots and the hash of each batch.<sup class="cite">1</sup> If anyone discovers an incorrect post-state root, they can publish a fraud proof to chain. ZK rollups instead include a ZK-SNARK with every batch, proving the post-state root is correct.<sup class="cite">1</sup>
+          <div class="footnotes">
+            <div><b>1</b> &nbsp;An Incomplete Guide to Rollups — vitalik.eth.limo &nbsp;·&nbsp; $0.50 USDC &nbsp;<span class="settle">SETTLED</span>&nbsp; de979faf-db16</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ COMPONENTS ============ -->
+  <h2>Change 3 — Component consistency</h2>
+  <p class="hint">Today three corner radii coexist (2px buttons, 4px cards, 8px nav button). Proposal: 2px everywhere — sharper, more editorial. Plus serif for all card titles.</p>
+  <div class="grid g2">
+    <div>
+      <p class="caption">Current — mixed radii, sans titles</p>
+      <div class="card" style="border-radius:4px;">
+        <div class="cardtitle-current" style="margin-bottom:1rem;">Research Workspace</div>
+        <div class="comprow">
+          <button class="btn b-primary r2">Ask AI</button>
+          <button class="btn b-primary r8">Connect Wallet</button>
+          <button class="btn b-highlight r2">Start Using CiteFlow</button>
+        </div>
+      </div>
+    </div>
+    <div>
+      <p class="caption">Proposed — 2px everywhere, serif titles</p>
+      <div class="card" style="border-radius:2px;">
+        <div class="cardtitle-serif" style="margin-bottom:1rem;">Research Workspace</div>
+        <div class="comprow">
+          <button class="btn b-primary r2">Ask AI</button>
+          <button class="btn b-primary r2">Connect Wallet</button>
+          <button class="btn b-highlight r2">Start Using CiteFlow</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ MANUSCRIPT ============ -->
+  <h2>Change 4 — Manuscript margin line (landing page)</h2>
+  <p class="hint">A subtle ruled margin line on hero sections — like a manuscript page. Costs nothing, reinforces the editorial identity.</p>
+  <div class="card" style="position:relative; overflow:hidden; padding:2.5rem 2rem 2.5rem 4.5rem; background:var(--paper);">
+    <div style="position:absolute; top:0; bottom:0; left:3rem; width:1px; background:var(--rust); opacity:.35;"></div>
+    <div style="position:absolute; top:0; bottom:0; left:3.2rem; width:1px; background:var(--rust); opacity:.2;"></div>
+    <div style="font-family:Merriweather,serif; font-weight:900; font-size:2rem; margin-bottom:.4rem;">The Decentralized Research Terminal.</div>
+    <div style="color:var(--soft-ink); max-width:34rem;">Ask a question. Get a grounded answer. Pay the creator instantly — nanopayments settled on Arc Testnet per citation used.</div>
+  </div>
+
+  <!-- ============ BACKGROUNDS ============ -->
+  <style>
+    .mini { border: 1px solid var(--border); border-radius: 2px; overflow: hidden; font-size: .7rem; }
+    .mini-nav { display: flex; align-items: center; gap: .8rem; padding: .6rem .9rem; border-bottom: 1px solid var(--border); background: rgba(255,255,255,.4); }
+    .mini-links { display: flex; gap: .7rem; margin-left: auto; color: var(--soft-ink); font-weight: 500; }
+    .mini-body { padding: 1rem .9rem 1.2rem; }
+    .mini-hero { font-family: Merriweather, serif; font-weight: 900; font-size: 1.05rem; margin-bottom: .6rem; }
+    .mini-cards { display: flex; gap: .6rem; }
+    .mini-card { flex: 1; border: 1px solid var(--border); border-radius: 2px; background: #fff; padding: .6rem; min-height: 52px; }
+    .mini-logo { font-weight: 700; font-size: .8rem; }
+    .mini.darkmode { background: #151713; color: #F3F0E8; }
+    .mini.darkmode .mini-nav { background: rgba(255,255,255,.04); border-color: rgba(243,240,232,.15); }
+    .mini.darkmode .mini-links { color: #9aa287; }
+    .mini.darkmode .mini-card { background: #1e211b; border-color: rgba(243,240,232,.12); }
+    .mini.darkmode .mini-hero { color: #F3F0E8; }
+    .mast { flex-direction: column; gap: .3rem; padding: .7rem .9rem .5rem; }
+    .mast .mini-links { margin: 0 auto; }
+    .side-wrap { display: flex; }
+    .side-rail { width: 92px; flex-shrink: 0; border-right: 1px solid var(--border); background: rgba(255,255,255,.4); padding: .7rem .6rem; display: flex; flex-direction: column; gap: .55rem; }
+    .side-rail .mini-links { flex-direction: column; margin: .4rem 0 0; gap: .45rem; }
+  </style>
+
+  <h2>Change 5 — Background color</h2>
+  <p class="hint">The cream paper is the identity anchor — I recommend keeping it (5a). But here are the honest alternatives.</p>
+  <div class="grid g3">
+    <div class="card rec" style="padding:1rem;">
+      <span class="pick">5a — KEEP PAPER</span>
+      <div class="mini" style="background:#F3F0E8;">
+        <div class="mini-nav"><span class="mini-logo">CiteFlowAI</span><div class="mini-links"><span>Agent</span><span>Register</span><span>Dashboard</span></div></div>
+        <div class="mini-body"><div class="mini-hero">The Decentralized Research Terminal.</div><div class="mini-cards"><div class="mini-card"></div><div class="mini-card"></div></div></div>
+      </div>
+      <p class="desc" style="margin-top:.8rem; min-height:0;">Current #F3F0E8. Warm, editorial, unlike every other Web3 app. Zero work.</p>
+    </div>
+    <div class="card" style="padding:1rem;">
+      <span class="pick">5b — WARM WHITE</span>
+      <div class="mini" style="background:#FBF9F4;">
+        <div class="mini-nav"><span class="mini-logo">CiteFlowAI</span><div class="mini-links"><span>Agent</span><span>Register</span><span>Dashboard</span></div></div>
+        <div class="mini-body"><div class="mini-hero">The Decentralized Research Terminal.</div><div class="mini-cards"><div class="mini-card" style="background:#fff;"></div><div class="mini-card" style="background:#fff;"></div></div></div>
+      </div>
+      <p class="desc" style="margin-top:.8rem; min-height:0;">#FBF9F4 — brighter, more SaaS-clean. Loses some paper character but cards pop less starkly.</p>
+    </div>
+    <div class="card" style="padding:1rem;">
+      <span class="pick">5c — INK MODE</span>
+      <div class="mini darkmode">
+        <div class="mini-nav"><span class="mini-logo">CiteFlowAI</span><div class="mini-links"><span>Agent</span><span>Register</span><span>Dashboard</span></div></div>
+        <div class="mini-body"><div class="mini-hero">The Decentralized Research Terminal.</div><div class="mini-cards"><div class="mini-card"></div><div class="mini-card"></div></div></div>
+      </div>
+      <p class="desc" style="margin-top:.8rem; min-height:0;">Full dark theme. Slick, but looks like every other Web3 app and touches every file — biggest effort, least differentiation.</p>
+    </div>
+  </div>
+
+  <!-- ============ NAV PLACEMENT ============ -->
+  <h2>Change 6 — Menu placement</h2>
+  <p class="hint">Current is a standard top bar. The masthead (6b) fits the editorial identity best if you want a change.</p>
+  <div class="grid g3">
+    <div class="card" style="padding:1rem;">
+      <span class="pick">6a — KEEP TOP BAR</span>
+      <div class="mini" style="background:#F3F0E8;">
+        <div class="mini-nav"><span class="mini-logo">CiteFlowAI</span><div class="mini-links"><span>Agent</span><span>Register</span><span>Dashboard</span><span>Docs</span></div></div>
+        <div class="mini-body"><div class="mini-hero">Research Workspace</div><div class="mini-cards"><div class="mini-card"></div><div class="mini-card"></div></div></div>
+      </div>
+      <p class="desc" style="margin-top:.8rem; min-height:0;">Logo left, links + wallet right. Familiar, works, zero effort.</p>
+    </div>
+    <div class="card rec" style="padding:1rem;">
+      <span class="pick">6b — MASTHEAD</span>
+      <div class="mini" style="background:#F3F0E8;">
+        <div class="mini-nav mast">
+          <span class="mini-logo" style="margin:0 auto; font-family:Merriweather,serif; font-size:.95rem;">CiteFlowAI</span>
+          <div class="mini-links"><span>Agent</span><span>Register</span><span>Dashboard</span><span>Docs</span><span style="color:var(--olive)">| 0x93...9682</span></div>
+        </div>
+        <div class="mini-body"><div class="mini-hero">Research Workspace</div><div class="mini-cards"><div class="mini-card"></div><div class="mini-card"></div></div></div>
+      </div>
+      <p class="desc" style="margin-top:.8rem; min-height:0;">Newspaper-style: serif logo centered on top, links ruled below. Maximum editorial character; moderate effort (Navigation.tsx only).</p>
+    </div>
+    <div class="card" style="padding:1rem;">
+      <span class="pick">6c — SIDEBAR</span>
+      <div class="mini" style="background:#F3F0E8;">
+        <div class="side-wrap">
+          <div class="side-rail">
+            <span class="mini-logo">CFAI</span>
+            <div class="mini-links"><span>Agent</span><span>Register</span><span>Dashboard</span><span>Docs</span></div>
+          </div>
+          <div class="mini-body" style="flex:1;"><div class="mini-hero">Research Workspace</div><div class="mini-cards"><div class="mini-card"></div><div class="mini-card"></div></div></div>
+        </div>
+      </div>
+      <p class="desc" style="margin-top:.8rem; min-height:0;">App/terminal feel, good if pages multiply later. Most rework (layout + every page's spacing), weakest fit for the editorial look.</p>
+    </div>
+  </div>
+
+  <div style="margin-top:4rem; font-family:'JetBrains Mono',monospace; font-size:.8rem; color:var(--olive); border-top:1px solid var(--border); padding-top:1.2rem;">
+    To pick: reply with a logo letter (A/B/C), changes 1–4 (any subset), a background (5a/5b/5c) and a nav (6a/6b/6c). This file is preview-only — nothing in the app has changed.
+  </div>
+</div>
+</body>
+</html>

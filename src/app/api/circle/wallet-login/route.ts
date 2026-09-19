@@ -7,19 +7,22 @@ import crypto from 'crypto'
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { userToken } = body
+    const { userToken, network } = body
+    const networkHeader = request.headers.get('x-network')
+    const activeNetwork = network || networkHeader || 'arc-testnet'
+    const isMainnet = activeNetwork === 'arc-mainnet'
 
-    if (!userToken) {
-      return NextResponse.json({ error: 'Missing userToken' }, { status: 400 })
-    }
+    const apiKey = isMainnet
+      ? (process.env.CIRCLE_API_KEY_MAINNET || process.env.CIRCLE_API_KEY)
+      : process.env.CIRCLE_API_KEY
 
-    if (!process.env.CIRCLE_API_KEY) {
-      return NextResponse.json({ error: 'Missing CIRCLE_API_KEY' }, { status: 500 })
+    if (!apiKey) {
+      return NextResponse.json({ error: 'Missing Circle API Key' }, { status: 500 })
     }
 
     // 1. Verify userToken with Circle and get the wallet address
     const circleClient = initiateUserControlledWalletsClient({
-      apiKey: process.env.CIRCLE_API_KEY,
+      apiKey,
     })
 
     const walletsRes = await circleClient.listWallets({ userToken })
@@ -37,7 +40,7 @@ export async function POST(request: NextRequest) {
     const email = `${walletAddress}@citeflow.local`
     
     // Generate a deterministic but secure password so they can log in next time
-    const password = crypto.createHash('sha256').update(walletAddress + process.env.CIRCLE_API_KEY).digest('hex')
+    const password = crypto.createHash('sha256').update(walletAddress + (process.env.SUPABASE_SERVICE_ROLE_KEY || 'citeflow')).digest('hex')
 
     let userId = null;
 

@@ -1,0 +1,75 @@
+Hackathon Submission Details: CiteFlow AI
+=========================================
+
+Title: 
+CiteFlow AI
+
+Short Description: 
+A Web3-native AI research terminal that replaces SaaS subscriptions with a Pay-Per-Prompt micro-economy. An AI agent autonomously researches, answers queries, and instantly distributes USDC nanopayments to creators whose IP was cited, refunding any unused budget to the user.
+
+Track submitted for:
+Best Agentic Economy Experience on Arc
+
+Email associated with your Circle Developer Account:
+citeflowai@gmail.com
+
+Select Circle products used on Arc:
+- USDC
+- Wallets
+- Nanopayments
+
+---
+Functional MVP and Diagram
+---
+
+Architecture Overview:
+CiteFlow AI introduces a two-sided micro-economy entirely orchestrated by an autonomous AI agent. When a user asks a question, they lock a micro-budget upfront from their Circle User-Controlled Wallet. The agent acts as a treasury: it performs RAG (Retrieval-Augmented Generation) via Supabase, evaluates registered creator content, and programmatically executes nanopayments to the cited creators using Circle's APIs. Any remaining funds from the initial budget are dynamically refunded to the user, creating a fair, usage-based payment system.
+
+Architecture Diagram:
+
+[ User (Circle Wallet) ] 
+      |
+      | 1. Submits Prompt & Locks $0.50 USDC Budget
+      v
+[ CiteFlow AI Agent ] ---- 2. Vector Search ----> [ Supabase (RAG & Ledger) ]
+      |               <--- 3. Returns Context ---
+      |
+      | 4. Synthesizes Answer & Determines Citations
+      |
+      | 5. Autonomously Executes Nanopayments ($0.05 USDC)
+      v
+[ Creator (Circle Wallet) ]
+
+[ CiteFlow AI Agent ] ---- 6. Refunds Unused Budget ($0.45) ----> [ User ]
+[ CiteFlow AI Agent ] ---- 7. Logs Transactions to Ledger ----> [ Supabase ]
+
+---
+Video Demonstration + Presentation
+---
+
+Video Link: 
+https://youtu.be/XpMZf3W5E5A?si=38LjgI3ugPIF6QDD
+
+---
+Link to GitHub/Code repository
+---
+https://github.com/vickman787/citeflowAI
+
+---
+Demo Application Platform/Application URL
+---
+https://citeflowai.xyz/
+
+---
+Circle Product Feedback
+---
+
+Why you chose these products for your use case:
+I chose Circle User-Controlled Wallets because abstracting away crypto complexity (via Email/OTP) is crucial for everyday researchers and creators. I utilized USDC and Nanopayments on Arc to empower my AI agent to act as an autonomous treasury. Instead of standard monthly SaaS subscriptions, my agent can dynamically price its services in real-time, executing sub-cent payments to creators based purely on the specific intellectual property it decides to cite.
+
+What worked well during development:
+The integration of Circle Programmable Wallets with my Supabase backend worked beautifully. The API design for creating wallets programmatically and the SDK's ability to seamlessly map a user's Circle identity (0x...) directly into a secure backend session allowed me to create a frictionless user experience.
+
+What could be improved & Recommendations:
+- UI Integrations: Native integration of Wallet UI elements (like the Email/OTP input) into popular React components like ConnectKit or Web3Modal would save significant development time. I had to build a custom wallet modal from scratch to achieve a unified Web2/Web3 login flow.
+- Testing Environments: It would be highly beneficial to have a streamlined developer tool or simulator to stress-test high-frequency nanopayments and agent treasury routing in a local or testnet environment before going live.

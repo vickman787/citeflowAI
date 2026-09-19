@@ -2,8 +2,10 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import { useNetwork } from '@/context/NetworkContext'
 
 export default function RegisterArticlePage() {
+  const { networkId, network } = useNetwork()
   const [url, setUrl] = useState('')
   const [price, setPrice] = useState('')
   const [loading, setLoading] = useState(false)
@@ -13,20 +15,26 @@ export default function RegisterArticlePage() {
   const router = useRouter()
 
   useEffect(() => {
-    const syncWallet = () => setWalletAddress(localStorage.getItem('circle_wallet_address'))
+    const syncWallet = () => {
+      const addr = localStorage.getItem(`circle_wallet_address_${networkId}`) || 
+        (networkId === 'arc-testnet' ? localStorage.getItem('circle_wallet_address') : null)
+      setWalletAddress(addr)
+    }
     syncWallet()
     window.addEventListener('storage', syncWallet)
     window.addEventListener('wallet_changed', syncWallet)
+    window.addEventListener('network_changed', syncWallet)
     return () => {
       window.removeEventListener('storage', syncWallet)
       window.removeEventListener('wallet_changed', syncWallet)
+      window.removeEventListener('network_changed', syncWallet)
     }
-  }, [])
+  }, [networkId])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!walletAddress) {
-      setError('Connect your wallet before registering a source.')
+      setError(`Connect your wallet on ${network.name} before registering a source.`)
       return
     }
     setLoading(true)
@@ -36,8 +44,11 @@ export default function RegisterArticlePage() {
     try {
       const res = await fetch('/api/sources/register', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url, price: parseFloat(price) }),
+        headers: { 
+          'Content-Type': 'application/json',
+          'x-network': networkId 
+        },
+        body: JSON.stringify({ url, price: parseFloat(price), network: networkId }),
       })
 
       const data = await res.json()

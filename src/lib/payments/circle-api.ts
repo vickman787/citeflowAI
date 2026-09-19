@@ -3,9 +3,9 @@ import dns from 'dns'
 
 dns.setDefaultResultOrder('ipv4first')
 
-export async function generateDynamicCiphertext(rawEntitySecretHex: string): Promise<string> {
-  const apiKey = process.env.CIRCLE_API_KEY
-  if (!apiKey) throw new Error('CIRCLE_API_KEY missing')
+export async function generateDynamicCiphertext(rawEntitySecretHex: string, customApiKey?: string): Promise<string> {
+  const apiKey = customApiKey || process.env.CIRCLE_API_KEY
+  if (!apiKey) throw new Error('Circle API key missing')
 
   const response = await fetch('https://api.circle.com/v1/w3s/config/entity/publicKey', {
     method: 'GET',
@@ -32,35 +32,41 @@ export async function generateDynamicCiphertext(rawEntitySecretHex: string): Pro
   return encryptedData.toString('base64')
 }
 
-export async function executeGatewayTransfer(destinationAddress: string, amountUsdc: string): Promise<string> {
-  const apiKey = process.env.CIRCLE_API_KEY
-  const walletId = process.env.CIRCLE_WALLET_ID
-  const rawSecret = process.env.RAW_ENTITY_SECRET
+export async function executeGatewayTransfer(
+  destinationAddress: string,
+  amountUsdc: string,
+  network?: string
+): Promise<string> {
+  const isMainnet = network === 'arc-mainnet'
+  const apiKey = isMainnet
+    ? (process.env.CIRCLE_API_KEY_MAINNET || process.env.CIRCLE_API_KEY)
+    : process.env.CIRCLE_API_KEY
+  const walletId = isMainnet
+    ? (process.env.CIRCLE_WALLET_ID_MAINNET || process.env.CIRCLE_WALLET_ID)
+    : process.env.CIRCLE_WALLET_ID
+  const rawSecret = isMainnet
+    ? (process.env.RAW_ENTITY_SECRET_MAINNET || process.env.RAW_ENTITY_SECRET)
+    : process.env.RAW_ENTITY_SECRET
 
   if (!apiKey || !walletId || !rawSecret) {
-    throw new Error('Circle configuration is incomplete. Ensure CIRCLE_API_KEY, CIRCLE_WALLET_ID, and RAW_ENTITY_SECRET are set.')
+    throw new Error('Circle configuration is incomplete. Ensure API key, Wallet ID, and RAW_ENTITY_SECRET are set.')
   }
 
   // Generate a fresh ciphertext for this specific transaction
-  const ciphertext = await generateDynamicCiphertext(rawSecret)
+  const ciphertext = await generateDynamicCiphertext(rawSecret, apiKey)
 
-  // In this integration, we execute a standard transaction on the Arc Testnet using Developer-Controlled Wallets.
-  // We use the Developer-Controlled Wallets /transactions/transfer endpoint.
-  // Note: On Arc Testnet, the USDC tokenId needs to be provided. If we don't have the explicit tokenId,
-  // we would typically use contractExecution. However, standard 'transfer' requires a tokenId.
-  // For the sake of this testnet implementation, we will mock the exact payload structure,
-  // but since we are interacting with the genuine Circle API, we will use a dummy token ID if necessary,
-  // or a native transfer if tokenId is omitted (which usually transfers native gas tokens).
-  // Assuming a generic ERC-20 transfer for USDC:
-  
-  const payload = {
+  const payload: any = {
     idempotencyKey: crypto.randomUUID(),
     entitySecretCiphertext: ciphertext,
     amounts: [amountUsdc.toString()],
     destinationAddress: destinationAddress,
     feeLevel: 'HIGH',
     walletId: walletId,
-    tokenId: 'ef87c8c3-85de-598a-af50-c5135eecfa74' // Actual Arc Testnet USDC Token ID
+  }
+
+  if (!isMainnet) {
+    // Arc Testnet USDC Token ID
+    payload.tokenId = 'ef87c8c3-85de-598a-af50-c5135eecfa74'
   }
 
   const response = await fetch('https://api.circle.com/v1/w3s/developer/transactions/transfer', {
@@ -75,12 +81,10 @@ export async function executeGatewayTransfer(destinationAddress: string, amountU
   const result = await response.json()
   
   if (!response.ok) {
-    // If we fail because of the dummy token ID or insufficient funds, we still want to throw
-    // so the agent knows the payment failed.
     console.error('CIRCLE API ERROR RESPONSE:', JSON.stringify(result, null, 2))
     throw new Error(JSON.stringify(result) || 'Circle API transaction failed')
   }
 
-  // The real gateway settlement ID (transaction ID in Circle's system)
+  // The real settlement ID (transaction ID in Circle's system)
   return result.data.id
 }

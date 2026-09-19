@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
 import CopyButton from '@/components/CopyButton'
 import VerifyIdentityPanel from '@/components/VerifyIdentityPanel'
+import DashboardNetworkBadge from '@/components/DashboardNetworkBadge'
 import { Trash } from 'lucide-react'
 
 
@@ -79,7 +80,7 @@ export default async function DashboardPage() {
         </div>
         <h1 className="text-3xl font-serif font-bold text-[var(--color-ink)] mb-4">Dashboard Locked</h1>
         <p className="text-lg text-[var(--color-soft-ink)] max-w-md mx-auto mb-8">
-          Please connect your Circle Wallet using the button in the top navigation bar to view your creator dashboard and track your Arc Testnet earnings.
+          Please connect your Circle Wallet using the button in the top navigation bar to view your creator dashboard and track your earnings.
         </p>
       </div>
     )
@@ -138,7 +139,7 @@ export default async function DashboardPage() {
     <div className="flex-1 flex flex-col pt-12 content-container pb-24">
       <header className="mb-12 border-b border-[var(--color-border-subtle)] pb-6">
         <h1 className="text-4xl font-serif font-bold text-[var(--color-ink)] mb-3">Dashboard</h1>
-        <p className="text-[var(--color-soft-ink)]">Manage your identity and track your Arc Testnet earnings.</p>
+        <p className="text-[var(--color-soft-ink)]">Manage your identity and track your earnings.</p>
       </header>
 
       <div className="mb-16">
@@ -158,7 +159,7 @@ export default async function DashboardPage() {
               </div>
               <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center border-b border-[var(--color-border-subtle)] pb-3 gap-2">
                 <span className="text-sm font-medium text-[var(--color-soft-ink)]">Network</span>
-                <span className="font-mono text-xs text-[var(--color-paper)] bg-[var(--color-signal-green)] px-2 py-1 rounded-[2px] w-fit font-bold">Arc Testnet</span>
+                <DashboardNetworkBadge />
               </div>
             </div>
           </div>

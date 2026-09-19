@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CiteFlow — UI Directions</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+:root{--paper:#F3F0E8;--ink:#151713;--olive:#69705A;--green:#B9F34A;--line:rgba(21,23,19,.16)}
+*{box-sizing:border-box;margin:0}
+body{background:var(--paper);color:var(--ink);font-family:Inter,sans-serif;padding:3rem 1.5rem 5rem}
+.wrap{max-width:1150px;margin:0 auto}
+h1{font-size:2rem;letter-spacing:-.02em}
+.sub{color:var(--olive);margin:.4rem 0 2.5rem}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(480px,1fr));gap:1.6rem}
+a.card{display:block;text-decoration:none;color:var(--ink);background:#fff;border:1px solid var(--line);border-radius:2px;overflow:hidden;transition:transform .15s ease, box-shadow .15s ease}
+a.card:hover{transform:translateY(-3px);box-shadow:0 12px 32px -12px rgba(21,23,19,.25)}
+iframe{width:200%;height:640px;border:0;transform:scale(.5);transform-origin:top left;pointer-events:none;display:block}
+.frame-clip{height:320px;overflow:hidden;border-bottom:1px solid var(--line)}
+.meta{padding:1.1rem 1.3rem 1.3rem}
+.meta .no{font-family:'JetBrains Mono',monospace;font-size:.62rem;color:var(--olive);letter-spacing:.16em}
+.meta .t{font-weight:700;font-size:1.15rem;margin:.25rem 0 .35rem}
+.meta .d{font-size:.84rem;color:var(--olive);line-height:1.55}
+.open{display:inline-block;margin-top:.8rem;font-family:'JetBrains Mono',monospace;font-size:.68rem;font-weight:700;background:var(--ink);color:var(--green);padding:.4rem .8rem;letter-spacing:.1em}
+.note{margin-top:2.6rem;font-family:'JetBrains Mono',monospace;font-size:.75rem;color:var(--olive);border-top:1px solid var(--line);padding-top:1.1rem;line-height:1.7}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>CiteFlow — Seven UI Directions</h1>
+  <p class="sub">Full-page mockups with your real content. 01–04 are the originals; 05–07 are the new mixed-color directions. Click any card to open full-screen — mixing is fine.</p>
+  <div class="grid">
+    <a class="card" href="/ui-directions/01-broadsheet.html" target="_blank">
+      <div class="frame-clip"><iframe src="/ui-directions/01-broadsheet.html" tabindex="-1"></iframe></div>
+      <div class="meta"><div class="no">DIRECTION 01</div><div class="t">The Broadsheet</div>
+      <div class="d">Evolution of your current look, executed to the hilt: newspaper masthead, live data ticker, hard-shadow plates, serif drop-cap answers with footnote citations. Distinctive and demo-friendly.</div>
+      <span class="open">OPEN FULL →</span></div>
+    </a>
+    <a class="card" href="/ui-directions/02-terminal.html" target="_blank">
+      <div class="frame-clip"><iframe src="/ui-directions/02-terminal.html" tabindex="-1"></iframe></div>
+      <div class="meta"><div class="no">DIRECTION 02</div><div class="t">The Terminal</div>
+      <div class="d">Full dark phosphor-green command deck: scanlines, status bar with live block height, side-by-side execution + answer panels, stat tiles. Maximum "autonomous agent" energy.</div>
+      <span class="open">OPEN FULL →</span></div>
+    </a>
+    <a class="card" href="/ui-directions/03-ledger.html" target="_blank">
+      <div class="frame-clip"><iframe src="/ui-directions/03-ledger.html" tabindex="-1"></iframe></div>
+      <div class="meta"><div class="no">DIRECTION 03</div><div class="t">The Ledger</div>
+      <div class="d">Modern fintech polish (Linear/Stripe school): soft shadows, pill nav, glassy sticky header, a 5-step flow strip, and a literal itemized receipt. The most "fundable-startup" look.</div>
+      <span class="open">OPEN FULL →</span></div>
+    </a>
+    <a class="card" href="/ui-directions/04-archive.html" target="_blank">
+      <div class="frame-clip"><iframe src="/ui-directions/04-archive.html" tabindex="-1"></iframe></div>
+      <div class="meta"><div class="no">DIRECTION 04</div><div class="t">The Archive</div>
+      <div class="d">Luxury editorial: Fraunces serif, framed page border, gold ornaments, rotated "PAID" stamps, margin-note citations, a settlement docket. The most memorable — and the most opinionated.</div>
+      <span class="open">OPEN FULL →</span></div>
+    </a>
+    <a class="card" href="/ui-directions/05-press.html" target="_blank">
+      <div class="frame-clip"><iframe src="/ui-directions/05-press.html" tabindex="-1"></iframe></div>
+      <div class="meta"><div class="no">DIRECTION 05 · NEW</div><div class="t">The Press</div>
+      <div class="d">Loud neo-brutalist pop: electric blue, hot pink, yellow and mint on cream, thick black borders, hard shadows, sticker badges, a marquee banner. Maximum energy — impossible to scroll past.</div>
+      <span class="open">OPEN FULL →</span></div>
+    </a>
+    <a class="card" href="/ui-directions/06-aurora.html" target="_blank">
+      <div class="frame-clip"><iframe src="/ui-directions/06-aurora.html" tabindex="-1"></iframe></div>
+      <div class="meta"><div class="no">DIRECTION 06 · NEW</div><div class="t">The Aurora</div>
+      <div class="d">Dark glassmorphism with a violet→pink→cyan gradient system: glowing blobs, gradient-border query card, bento grid, neon terminal colors. The premium "AI product" look (Linear/Vercel school).</div>
+      <span class="open">OPEN FULL →</span></div>
+    </a>
+    <a class="card" href="/ui-directions/07-sunrise.html" target="_blank">
+      <div class="frame-clip"><iframe src="/ui-directions/07-sunrise.html" tabindex="-1"></iframe></div>
+      <div class="meta"><div class="no">DIRECTION 07 · NEW</div><div class="t">The Sunrise</div>
+      <div class="d">Warm & friendly multicolor: coral, teal, gold and plum on warm white, orbit hero graphic, 3-step pipeline cards, creator avatars. Approachable fintech — colorful without shouting.</div>
+      <span class="open">OPEN FULL →</span></div>
+    </a>
+  </div>
+  <p class="note">Each direction includes its own matching logo treatment in the nav. Nothing in the app has changed — these are static previews in /public.<br>To decide: name a direction (01–04). Mixing is fine — e.g. "03 layout, 02's terminal panel, 01's logo".</p>
+</div>
+</body>
+</html>

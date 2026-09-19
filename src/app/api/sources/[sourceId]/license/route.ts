@@ -31,6 +31,8 @@ export async function GET(
       )
     }
 
+    const network = request.headers.get('x-network') || request.nextUrl.searchParams.get('network') || 'arc-testnet'
+
     // Return the HTTP 402 Payment Required response as per x402 standards
     return NextResponse.json(
       {
@@ -38,7 +40,7 @@ export async function GET(
         amount: source.price_usdc,
         currency: 'USDC',
         recipient: walletAddress,
-        network: 'arc-testnet',
+        network,
         paymentEndpoint: `/api/sources/${sourceId}/license`
       },
       { status: 402 }
@@ -58,7 +60,8 @@ export async function POST(
     const supabase = await createClient()
     const body = await request.json()
 
-    const { authorizationId, amount, nonce, validAfter, validBefore } = body
+    const { authorizationId, amount, nonce, validAfter, validBefore, network: bodyNetwork } = body
+    const network = bodyNetwork || request.headers.get('x-network') || 'arc-testnet'
 
     if (!authorizationId) {
       return NextResponse.json({ error: 'Missing payment authorization payload' }, { status: 400 })
@@ -105,9 +108,9 @@ export async function POST(
       const price = parseFloat(source.price_usdc)
       const creatorPayout = (price * (1 - platformFeePercent)).toFixed(6)
       
-      console.log(`[Take Rate Executed] Citation Price: $${price} | Platform Fee: $${(price * platformFeePercent).toFixed(6)} | Creator Payout: $${creatorPayout}`)
+      console.log(`[Take Rate Executed] Citation Price: $${price} | Platform Fee: $${(price * platformFeePercent).toFixed(6)} | Creator Payout: $${creatorPayout} (${network})`)
       
-      gatewaySettlementId = await executeGatewayTransfer(recipientWallet, creatorPayout)
+      gatewaySettlementId = await executeGatewayTransfer(recipientWallet, creatorPayout, network)
     } catch (apiError: any) {
       console.error('Circle API Execution Failed:', apiError)
       return NextResponse.json({ error: apiError.message || 'Payment execution failed at Gateway' }, { status: 500 })

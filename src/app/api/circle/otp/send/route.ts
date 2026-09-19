@@ -1,13 +1,9 @@
 import { initiateUserControlledWalletsClient } from '@circle-fin/user-controlled-wallets';
 import { NextResponse } from 'next/server';
 
-const circleUserSdk = initiateUserControlledWalletsClient({
-  apiKey: process.env.CIRCLE_API_KEY as string,
-});
-
 export async function POST(req: Request) {
   try {
-    const { email, deviceId } = await req.json();
+    const { email, deviceId, network } = await req.json();
 
     if (!email || !deviceId) {
         return NextResponse.json(
@@ -16,7 +12,13 @@ export async function POST(req: Request) {
         );
     }
 
-    console.log(`Sending Email OTP to: ${email} for device: ${deviceId}`);
+    const apiKey = (network === 'arc-mainnet'
+      ? (process.env.CIRCLE_API_KEY_MAINNET || process.env.CIRCLE_API_KEY)
+      : process.env.CIRCLE_API_KEY) as string;
+
+    const circleUserSdk = initiateUserControlledWalletsClient({ apiKey });
+
+    console.log(`Sending Email OTP to: ${email} for device: ${deviceId} (${network || 'testnet'})`);
 
     // Call the Circle API to send the OTP
     const response = await circleUserSdk.createDeviceTokenForEmailLogin({

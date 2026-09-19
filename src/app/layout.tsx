@@ -4,6 +4,7 @@ import { IBM_Plex_Sans, IBM_Plex_Mono } from "next/font/google";
 import { Navigation } from "@/components/Navigation";
 import StatsTicker from "@/components/StatsTicker";
 import { getNetworkStats } from "@/lib/stats";
+import { NetworkProvider } from "@/context/NetworkContext";
 import "./globals.css";
 
 const sans = IBM_Plex_Sans({
@@ -19,20 +20,24 @@ const mono = IBM_Plex_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "citeflow_ai | Arc Testnet",
-  description: "The research terminal that pays its sources. USDC nanopayments per citation, settled on Arc Testnet.",
+  title: "citeflow_ai | Autonomous AI Research Terminal",
+  description: "The research terminal that pays its sources. USDC nanopayments per citation, settled on the Arc network.",
 };
 
+import { cookies } from "next/headers";
 import { createClient } from "@/utils/supabase/server";
+import type { NetworkId } from "@/lib/network";
 
 export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const cookieStore = await cookies();
+  const networkCookie = cookieStore.get('citeflow_network')?.value as NetworkId | undefined;
   const supabase = await createClient();
   const { data } = await supabase.auth.getUser();
-  const stats = await getNetworkStats().catch(() => null);
+  const stats = await getNetworkStats(networkCookie).catch(() => null);
 
   return (
     <html
@@ -69,26 +74,28 @@ export default async function RootLayout({
 
           return (
             <>
-              {/* Ticker tape — live network stats scrolling across every page */}
-              {stats ? (
-                <StatsTicker stats={stats} />
-              ) : (
-                <div className="w-full border-b border-[var(--color-border-subtle)] font-mono text-[0.62rem] uppercase tracking-[0.12em] text-[var(--color-soft-ink)]">
-                  <div className="content-container flex items-center justify-between py-2">
-                    <span className="flex items-center gap-2">
-                      <span className="glow-dot"></span>
-                      <span className="text-[var(--color-signal-green)]">ARC-TESTNET · LIVE</span>
-                    </span>
-                    <span>CIRCLE W3S</span>
+              <NetworkProvider initialNetworkId={networkCookie}>
+                {/* Ticker tape — live network stats scrolling across every page */}
+                {stats ? (
+                  <StatsTicker stats={stats} />
+                ) : (
+                  <div className="w-full border-b border-[var(--color-border-subtle)] font-mono text-[0.62rem] uppercase tracking-[0.12em] text-[var(--color-soft-ink)]">
+                    <div className="content-container flex items-center justify-between py-2">
+                      <span className="flex items-center gap-2">
+                        <span className="glow-dot"></span>
+                        <span className="text-[var(--color-signal-green)]">ARC · LIVE</span>
+                      </span>
+                      <span>CIRCLE W3S</span>
+                    </div>
                   </div>
+                )}
+
+                <Navigation initialUser={data?.user} />
+
+                <div className="flex-1 flex flex-col">
+                  {children}
                 </div>
-              )}
-
-              <Navigation initialUser={data?.user} />
-
-              <div className="flex-1 flex flex-col">
-                {children}
-              </div>
+              </NetworkProvider>
             </>
           );
         })()}

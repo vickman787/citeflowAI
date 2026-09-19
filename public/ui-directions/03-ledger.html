@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Direction 03 — The Ledger</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Söhne:wght@400&family=Instrument+Serif:ital@0;1&family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#FAFAF7;--card:#FFFFFF;--ink:#111310;--soft:#4A4E45;--mute:#8A8F82;--green:#AEE838;--green-ink:#3E5C00;--green-soft:#F0FADC;--rust:#D4552E;--rust-soft:#FBEEE8;--line:#E7E6DF;--line2:#D5D4CB;--shadow:0 1px 2px rgba(17,19,16,.05),0 8px 24px -12px rgba(17,19,16,.12)}
+*{box-sizing:border-box;margin:0}
+body{background:var(--bg);color:var(--ink);font-family:Geist,Inter,sans-serif;-webkit-font-smoothing:antialiased}
+.mono{font-family:'Geist Mono',monospace}
+.serif{font-family:'Instrument Serif',serif}
+.wrap{max-width:1080px;margin:0 auto;padding:0 2rem}
+
+/* nav */
+.navwrap{position:sticky;top:0;background:rgba(250,250,247,.85);backdrop-filter:blur(12px);border-bottom:1px solid var(--line);z-index:20}
+nav{display:flex;align-items:center;gap:2rem;height:64px;max-width:1080px;margin:0 auto;padding:0 2rem}
+.logo{display:flex;align-items:center;gap:.6rem;font-weight:600;font-size:1.02rem;letter-spacing:-.01em}
+.links{display:flex;gap:.4rem;margin-left:.6rem}
+.links a{color:var(--soft);text-decoration:none;font-size:.86rem;font-weight:500;padding:.45rem .85rem;border-radius:999px}
+.links a.on{background:var(--ink);color:#fff}
+.links a:hover:not(.on){background:var(--line)}
+.right{margin-left:auto;display:flex;align-items:center;gap:.8rem}
+.wallet{display:flex;align-items:center;gap:.55rem;font-family:'Geist Mono',monospace;font-size:.74rem;background:var(--card);border:1px solid var(--line2);border-radius:999px;padding:.45rem .9rem;box-shadow:var(--shadow)}
+.dotg{width:7px;height:7px;border-radius:50%;background:var(--green)}
+.balance{font-weight:700}
+
+/* hero */
+.hero{padding:4.2rem 0 3rem;text-align:center}
+.chip{display:inline-flex;align-items:center;gap:.5rem;font-family:'Geist Mono',monospace;font-size:.68rem;letter-spacing:.06em;color:var(--green-ink);background:var(--green-soft);border:1px solid #DDF0B5;border-radius:999px;padding:.35rem .9rem;margin-bottom:1.6rem}
+h1{font-size:3.3rem;font-weight:600;letter-spacing:-.035em;line-height:1.06}
+h1 em{font-family:'Instrument Serif',serif;font-style:italic;font-weight:400;letter-spacing:-.01em}
+.sub{color:var(--soft);font-size:1.05rem;max-width:46ch;margin:1.2rem auto 0;line-height:1.65}
+.qcard{max-width:760px;margin:2.6rem auto 0;background:var(--card);border:1px solid var(--line2);border-radius:16px;box-shadow:var(--shadow);padding:.6rem;display:flex;gap:.6rem;align-items:center}
+.qcard input{flex:1;border:0;outline:none;font-size:.98rem;padding:.8rem 1rem;font-family:Geist;color:var(--ink);background:transparent}
+.qcard .budget{display:flex;align-items:center;gap:.3rem;font-family:'Geist Mono',monospace;font-size:.88rem;color:var(--soft);border:1px solid var(--line);border-radius:10px;padding:.55rem .8rem;background:var(--bg)}
+.qcard button{border:0;background:var(--ink);color:#fff;font-weight:600;font-size:.9rem;padding:.8rem 1.6rem;border-radius:11px;cursor:pointer}
+.qcard button:hover{opacity:.88}
+.trust{margin-top:1.1rem;font-family:'Geist Mono',monospace;font-size:.66rem;color:var(--mute);letter-spacing:.05em}
+
+/* flow strip */
+.flow{display:flex;justify-content:center;gap:0;margin:3.2rem auto 0;max-width:760px}
+.step{flex:1;text-align:center;position:relative;padding:0 .8rem}
+.step:not(:last-child)::after{content:"→";position:absolute;right:-9px;top:6px;color:var(--mute);font-size:.9rem}
+.step .ic{width:34px;height:34px;margin:0 auto .55rem;border-radius:10px;background:var(--card);border:1px solid var(--line2);display:flex;align-items:center;justify-content:center;font-size:.95rem;box-shadow:var(--shadow)}
+.step .t{font-size:.8rem;font-weight:600}
+.step .d{font-size:.7rem;color:var(--mute);margin-top:.15rem}
+
+/* main cards */
+.stack{display:flex;flex-direction:column;gap:1.3rem;margin:3.4rem 0 0}
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);overflow:hidden}
+.card-h{display:flex;align-items:center;gap:.7rem;padding:1rem 1.4rem;border-bottom:1px solid var(--line)}
+.card-h .t{font-weight:600;font-size:.95rem}
+.card-h .r{margin-left:auto;font-family:'Geist Mono',monospace;font-size:.66rem;color:var(--mute)}
+.badge{font-family:'Geist Mono',monospace;font-size:.6rem;font-weight:700;letter-spacing:.08em;padding:.22em .6em;border-radius:999px}
+.badge.live{background:var(--green-soft);color:var(--green-ink);border:1px solid #DDF0B5}
+
+/* terminal (light, refined) */
+.term{background:#101208;border-radius:12px;margin:1.1rem 1.4rem 1.4rem;color:#D9E0C8;font-family:'Geist Mono',monospace;font-size:.78rem}
+.term-h{display:flex;gap:.45rem;padding:.75rem 1rem;border-bottom:1px solid rgba(217,224,200,.1)}
+.tdot{width:9px;height:9px;border-radius:50%}
+.term-b{padding:1rem 1.1rem 1.2rem;display:flex;flex-direction:column;gap:.5rem;line-height:1.55}
+.ln{display:flex;gap:.9rem}.no{color:#626B52;flex-shrink:0}
+.ok{color:#C6FF4D}.bad{color:#FF8A64}.dim{color:#98A186}
+.cursor{display:inline-block;width:8px;height:13px;background:#C6FF4D;animation:bl 1s steps(1) infinite;vertical-align:middle}
+@keyframes bl{50%{opacity:0}}
+
+/* answer */
+.ans{padding:1.6rem 1.8rem 1.8rem;font-size:.98rem;line-height:1.85;color:var(--soft);max-width:72ch}
+.ans .lead{font-family:'Instrument Serif',serif;font-size:1.35rem;color:var(--ink);line-height:1.5;display:block;margin-bottom:.8rem}
+sup.c{font-family:'Geist Mono',monospace;font-size:.6em;background:var(--ink);color:#fff;padding:.1em .45em;border-radius:4px;margin-left:.2em;font-weight:700;cursor:pointer}
+.srcline{display:flex;align-items:center;gap:.8rem;margin-top:1.5rem;padding:1rem 1.1rem;background:var(--bg);border:1px solid var(--line);border-radius:12px}
+.srcline .fav{width:34px;height:34px;border-radius:9px;background:var(--ink);color:#fff;display:flex;align-items:center;justify-content:center;font-family:'Instrument Serif',serif;font-size:1.15rem;flex-shrink:0}
+.srcline .t{font-weight:600;font-size:.86rem}
+.srcline .u{font-family:'Geist Mono',monospace;font-size:.66rem;color:var(--mute);margin-top:.15rem}
+.srcline .amt{margin-left:auto;text-align:right}
+.srcline .amt .v{font-family:'Geist Mono',monospace;font-weight:700;font-size:.92rem}
+.pillst{font-family:'Geist Mono',monospace;font-size:.58rem;font-weight:700;letter-spacing:.08em;padding:.2em .6em;border-radius:999px;background:var(--green-soft);color:var(--green-ink);border:1px solid #DDF0B5}
+
+/* receipt ledger */
+.receipt{padding:.4rem 1.4rem 1.2rem}
+.rrow{display:flex;align-items:center;gap:1rem;padding:.85rem .2rem;border-bottom:1px dashed var(--line2);font-size:.88rem}
+.rrow:last-child{border:0}
+.rrow .lab{color:var(--soft)}
+.rrow .dots{flex:1;border-bottom:1px dotted var(--line2);height:1px;transform:translateY(6px)}
+.rrow .val{font-family:'Geist Mono',monospace;font-weight:600}
+.rrow .val.plus{color:var(--green-ink)}
+.rrow.total{font-weight:700}
+.rrow.total .val{font-size:1.05rem}
+.footer{margin:4rem 0 2.6rem;display:flex;justify-content:space-between;color:var(--mute);font-family:'Geist Mono',monospace;font-size:.66rem;letter-spacing:.05em}
+</style>
+</head>
+<body>
+
+<div class="navwrap"><nav>
+  <span class="logo">
+    <svg width="28" height="28" viewBox="0 0 64 64"><rect x="2" y="2" width="60" height="60" rx="16" fill="#111310"/><text x="31" y="59" font-family="'Instrument Serif',serif" font-size="66" text-anchor="middle" fill="#FAFAF7">&#8221;</text><circle cx="49" cy="15" r="7" fill="#AEE838"/></svg>
+    CiteFlow
+  </span>
+  <div class="links"><a class="on" href="#">Agent</a><a href="#">Register</a><a href="#">Dashboard</a><a href="#">Docs</a></div>
+  <div class="right"><span class="wallet"><span class="dotg"></span>0x93…9682&nbsp;·&nbsp;<span class="balance">$4.20</span></span></div>
+</nav></div>
+
+<main class="wrap">
+  <section class="hero">
+    <span class="chip"><span class="dotg"></span> LIVE ON ARC TESTNET — 1,284 settlements</span>
+    <h1>Answers with <em>receipts.</em><br>Citations that <em>get paid.</em></h1>
+    <p class="sub">CiteFlow's agent grounds every answer in registered sources and streams USDC nanopayments to the writers it quotes — automatically, per question.</p>
+    <div class="qcard">
+      <input value="What are the exact differences in state root publishing between rollup types?">
+      <span class="budget">$ <b>1.00</b></span>
+      <button>Ask the Agent</button>
+    </div>
+    <div class="trust">POWERED BY CIRCLE W3S · NO SUBSCRIPTION · UNSPENT BUDGET AUTO-REFUNDED</div>
+  </section>
+
+  <div class="flow">
+    <div class="step"><div class="ic">💰</div><div class="t">Lock budget</div><div class="d">$1.00 escrow</div></div>
+    <div class="step"><div class="ic">🔍</div><div class="t">Agent reads</div><div class="d">20 sources scored</div></div>
+    <div class="step"><div class="ic">✍️</div><div class="t">Grounded answer</div><div class="d">citations inline</div></div>
+    <div class="step"><div class="ic">⚡</div><div class="t">Creators paid</div><div class="d">USDC settled</div></div>
+    <div class="step"><div class="ic">↩️</div><div class="t">Change back</div><div class="d">$0.30 refunded</div></div>
+  </div>
+
+  <div class="stack">
+    <div class="card">
+      <div class="card-h"><span class="t">Agent Execution</span><span class="badge live">● LIVE</span><span class="r">session 4ff48147 · 14.2s</span></div>
+      <div class="term">
+        <div class="term-h"><span class="tdot" style="background:#FF6057"></span><span class="tdot" style="background:#FFBD2E"></span><span class="tdot" style="background:#27C93F"></span></div>
+        <div class="term-b">
+          <div class="ln"><span class="no">01</span><span class="dim">agent initialized · treasury connected</span></div>
+          <div class="ln"><span class="no">02</span><span class="dim">20 sources found · evaluating relevance…</span></div>
+          <div class="ln"><span class="no">03</span><span>An Incomplete Guide to Rollups · 0.91 · <span class="ok">accepted</span></span></div>
+          <div class="ln"><span class="no">04</span><span>Blockchain in the Age of AI · 0.00 · <span class="bad">skipped</span></span></div>
+          <div class="ln"><span class="no">05</span><span class="ok">✓ $0.50 settled → vitalik.eth · de979faf</span></div>
+          <div class="ln"><span class="no">06</span><span class="ok">✓ $0.30 refunded → your wallet</span></div>
+          <div class="ln"><span class="no">07</span><span class="cursor"></span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-h"><span class="t">Grounded Answer</span><span class="r">1 paid citation</span></div>
+      <div class="ans">
+        <span class="lead">Optimistic and ZK rollups differ fundamentally in how state roots are published and verified.</span>
+        Optimistic rollups track the entire history of state roots and each batch hash — anyone who spots an incorrect post-state root can publish a fraud proof, reverting that batch and all after it.<sup class="c">1</sup> ZK rollups attach a ZK-SNARK to every batch, cryptographically proving the post-state root is correct, verified on-chain regardless of computation size.<sup class="c">1</sup>
+        <div class="srcline">
+          <span class="fav">”</span>
+          <span><span class="t">An Incomplete Guide to Rollups</span><div class="u">vitalik.eth.limo · cited 2× in this answer</div></span>
+          <span class="amt"><div class="v">$0.50</div><span class="pillst">SETTLED</span></span>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-h"><span class="t">Receipt</span><span class="r">arc testnet · usdc</span></div>
+      <div class="receipt">
+        <div class="rrow"><span class="lab">Budget locked</span><span class="dots"></span><span class="val">$1.00</span></div>
+        <div class="rrow"><span class="lab">Citation — An Incomplete Guide to Rollups</span><span class="dots"></span><span class="val">−$0.50</span></div>
+        <div class="rrow"><span class="lab">Platform fee</span><span class="dots"></span><span class="val">−$0.20</span></div>
+        <div class="rrow"><span class="lab">Refunded to wallet</span><span class="dots"></span><span class="val plus">+$0.30</span></div>
+        <div class="rrow total"><span class="lab">This answer cost</span><span class="dots"></span><span class="val">$0.70</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer"><span>© 2026 CiteFlow — The Decentralized Research Terminal</span><span>Circle W3S · Arc Testnet</span></div>
+</main>
+</body></html>

@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Direction 02 — The Terminal</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#0C0E0A;--bg2:#12150E;--panel:#161A11;--ink:#E8EDDA;--dim:#9BA588;--faint:#5A6350;--green:#C6FF4D;--green-glow:rgba(198,255,77,.14);--amber:#FFB454;--red:#FF6B4A;--line:rgba(232,237,218,.1);--line2:rgba(232,237,218,.2)}
+*{box-sizing:border-box;margin:0}
+body{background:var(--bg);color:var(--ink);font-family:'IBM Plex Sans',sans-serif;-webkit-font-smoothing:antialiased}
+.mono{font-family:'IBM Plex Mono',monospace}
+body::before{content:"";position:fixed;inset:0;pointer-events:none;background:repeating-linear-gradient(0deg,transparent 0 2px,rgba(0,0,0,.12) 2px 4px);z-index:9;opacity:.35}
+.wrap{max-width:1100px;margin:0 auto;padding:0 2rem}
+
+/* status bar */
+.statusbar{display:flex;justify-content:space-between;font-family:'IBM Plex Mono',monospace;font-size:.66rem;letter-spacing:.1em;color:var(--dim);border-bottom:1px solid var(--line);padding:.55rem 2rem;text-transform:uppercase}
+.statusbar .g{color:var(--green)}
+
+/* nav */
+nav{display:flex;align-items:center;gap:2.4rem;padding:1.1rem 2rem;border-bottom:1px solid var(--line)}
+.logo{display:flex;align-items:center;gap:.65rem;font-family:'IBM Plex Mono',monospace;font-weight:700;font-size:1.05rem;letter-spacing:.02em}
+.logo svg{display:block}
+.logo .ai{color:var(--green)}
+nav .links{display:flex;gap:1.8rem;font-family:'IBM Plex Mono',monospace;font-size:.78rem;margin-left:1rem}
+nav .links a{color:var(--dim);text-decoration:none}
+nav .links a.on{color:var(--green)}
+nav .links a.on::before{content:"▸ "}
+.wallet{margin-left:auto;font-family:'IBM Plex Mono',monospace;font-size:.72rem;border:1px solid var(--line2);padding:.5rem .9rem;color:var(--ink);display:flex;gap:.6rem;align-items:center;background:var(--bg2)}
+.dotg{width:7px;height:7px;border-radius:50%;background:var(--green);box-shadow:0 0 8px var(--green)}
+
+/* hero */
+.hero{padding:3.6rem 0 2.4rem}
+.prompt-label{font-family:'IBM Plex Mono',monospace;color:var(--faint);font-size:.72rem;margin-bottom:.9rem}
+.prompt-label b{color:var(--green)}
+h1{font-family:'IBM Plex Mono',monospace;font-weight:600;font-size:2.3rem;line-height:1.2;letter-spacing:-.01em;max-width:30ch}
+h1 .accent{color:var(--green);text-shadow:0 0 24px var(--green-glow)}
+.sub{color:var(--dim);margin-top:1rem;max-width:56ch;line-height:1.7;font-size:.95rem}
+.qbar{margin-top:2.2rem;display:flex;background:var(--bg2);border:1px solid var(--line2)}
+.qbar:focus-within{border-color:var(--green);box-shadow:0 0 0 1px var(--green),0 0 30px var(--green-glow)}
+.qbar .ps{display:flex;align-items:center;padding:0 0 0 1.1rem;color:var(--green);font-family:'IBM Plex Mono',monospace;font-weight:700}
+.qbar input{flex:1;border:0;background:transparent;color:var(--ink);font-family:'IBM Plex Mono',monospace;font-size:.88rem;padding:1.1rem 1rem;outline:none}
+.qbar .budget{display:flex;align-items:center;font-family:'IBM Plex Mono',monospace;font-size:.85rem;color:var(--dim);border-left:1px solid var(--line);padding:0 1.1rem;gap:.3rem}
+.qbar button{border:0;background:var(--green);color:#0C0E0A;font-family:'IBM Plex Mono',monospace;font-weight:700;font-size:.85rem;padding:0 1.9rem;cursor:pointer;letter-spacing:.04em}
+.qbar button:hover{box-shadow:0 0 24px var(--green-glow)}
+
+/* layout grid */
+.grid{display:grid;grid-template-columns:1.1fr .9fr;gap:1.4rem;margin-top:2.6rem;align-items:start}
+.panel{background:var(--panel);border:1px solid var(--line)}
+.panel-h{display:flex;align-items:center;gap:.7rem;font-family:'IBM Plex Mono',monospace;font-size:.66rem;letter-spacing:.18em;text-transform:uppercase;color:var(--dim);padding:.8rem 1.1rem;border-bottom:1px solid var(--line)}
+.panel-h .r{margin-left:auto;color:var(--faint)}
+
+/* terminal */
+.term-b{padding:1.1rem;display:flex;flex-direction:column;gap:.5rem;font-family:'IBM Plex Mono',monospace;font-size:.78rem;line-height:1.55}
+.ln{display:flex;gap:.9rem}
+.no{color:var(--faint);flex-shrink:0}
+.ok{color:var(--green)}.warn{color:var(--red)}.info{color:var(--dim)}.amber{color:var(--amber)}
+.cursor{display:inline-block;width:8px;height:14px;background:var(--green);animation:bl 1s steps(1) infinite;vertical-align:middle;box-shadow:0 0 10px var(--green-glow)}
+@keyframes bl{50%{opacity:0}}
+.bar{height:3px;background:var(--bg);margin:.3rem 0 .1rem;position:relative;overflow:hidden}
+.bar i{position:absolute;inset:0;width:72%;background:var(--green);box-shadow:0 0 12px var(--green-glow)}
+
+/* answer */
+.ans-b{padding:1.4rem 1.5rem;font-size:.92rem;line-height:1.85;color:var(--ink)}
+sup.c{font-family:'IBM Plex Mono',monospace;font-size:.62em;background:var(--green);color:#0C0E0A;padding:.08em .4em;font-weight:700;margin-left:.2em;border-radius:1px}
+.foot{border-top:1px dashed var(--line2);margin-top:1.3rem;padding-top:1rem;font-family:'IBM Plex Mono',monospace;font-size:.7rem;color:var(--dim);display:flex;flex-direction:column;gap:.5rem}
+.foot b{color:var(--green)}
+.tag{background:var(--green);color:#0C0E0A;font-weight:700;font-size:.58rem;letter-spacing:.1em;padding:.14em .5em}
+.tag.ghost{background:transparent;border:1px solid var(--line2);color:var(--dim)}
+
+/* ledger table */
+.ledger{margin-top:1.4rem}
+table{width:100%;border-collapse:collapse;font-size:.82rem}
+th{font-family:'IBM Plex Mono',monospace;font-size:.62rem;letter-spacing:.16em;text-transform:uppercase;color:var(--faint);text-align:left;padding:.7rem 1.1rem;border-bottom:1px solid var(--line)}
+td{padding:.85rem 1.1rem;border-bottom:1px solid var(--line);vertical-align:middle}
+tr:last-child td{border:0}
+td .u{font-family:'IBM Plex Mono',monospace;font-size:.66rem;color:var(--faint);margin-top:.2rem}
+.amt{font-family:'IBM Plex Mono',monospace;font-weight:600}
+.amt.plus{color:var(--green)}
+.hash{font-family:'IBM Plex Mono',monospace;font-size:.66rem;color:var(--dim)}
+
+/* stats strip */
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:1.4rem;margin-top:2.6rem}
+.stat{border:1px solid var(--line);background:var(--bg2);padding:1.1rem 1.2rem}
+.stat .k{font-family:'IBM Plex Mono',monospace;font-size:.6rem;letter-spacing:.16em;text-transform:uppercase;color:var(--faint)}
+.stat .v{font-family:'IBM Plex Mono',monospace;font-weight:700;font-size:1.5rem;margin-top:.4rem}
+.stat .v .g{color:var(--green)}
+.footer{margin:3.4rem 0 2.4rem;border-top:1px solid var(--line);padding-top:1rem;display:flex;justify-content:space-between;font-family:'IBM Plex Mono',monospace;font-size:.62rem;letter-spacing:.12em;color:var(--faint);text-transform:uppercase}
+</style>
+</head>
+<body>
+
+<div class="statusbar"><span><span class="g">●</span> ARC-TESTNET · BLOCK 8,412,077</span><span>GAS: LOW · LATENCY: 41MS</span><span>TREASURY: $96.40 / $100 DAILY</span></div>
+
+<nav>
+  <span class="logo">
+    <svg width="26" height="26" viewBox="0 0 64 64"><rect x="2" y="2" width="60" height="60" rx="6" fill="#C6FF4D"/><text x="32" y="64" font-family="'IBM Plex Mono',monospace" font-weight="700" font-size="64" text-anchor="middle" fill="#0C0E0A">*</text></svg>
+    citeflow<span class="ai">_ai</span>
+  </span>
+  <div class="links"><a class="on" href="#">agent</a><a href="#">register</a><a href="#">dashboard</a><a href="#">docs</a></div>
+  <span class="wallet"><span class="dotg"></span>0x93…9682 · $4.20 USDC</span>
+</nav>
+
+<main class="wrap">
+  <section class="hero">
+    <div class="prompt-label"><b>~/citeflow</b> $ ask --grounded --pay-per-citation</div>
+    <h1>Research that <span class="accent">pays its sources</span>, in real time.</h1>
+    <p class="sub">The agent reads the registered corpus, grounds every claim, and streams USDC micro-settlements to the authors it cites. No subscription. No scraping. Receipts for everything.</p>
+    <div class="qbar">
+      <span class="ps">❯</span>
+      <input value="According to Vitalik Buterin's 'An Incomplete Guide to Rollups', what are the exact differences in state root publishing?">
+      <div class="budget">$ <b style="color:var(--ink)">1.00</b></div>
+      <button>EXECUTE</button>
+    </div>
+  </section>
+
+  <div class="grid">
+    <div class="panel">
+      <div class="panel-h"><span class="dotg"></span> live execution — session 4ff48147 <span class="r">streaming</span></div>
+      <div class="term-b">
+        <div class="ln"><span class="no">001</span><span class="info">agent_1 initialized · connecting to treasury…</span></div>
+        <div class="ln"><span class="no">002</span><span class="info">found 20 registered sources · evaluating</span></div>
+        <div class="bar"><i></i></div>
+        <div class="ln"><span class="no">003</span><span>rollup-guide <span class="amber">score 0.91</span> → <span class="ok">ACCEPT</span></span></div>
+        <div class="ln"><span class="no">004</span><span>blockchain-age-of-ai <span class="amber">score 0.00</span> → <span class="warn">SKIP</span></span></div>
+        <div class="ln"><span class="no">005</span><span class="ok">✓ settled $0.50 → vitalik.eth · batch de979faf</span></div>
+        <div class="ln"><span class="no">006</span><span class="ok">✓ refund $0.30 → 0x93…9682</span></div>
+        <div class="ln"><span class="no">007</span><span class="cursor"></span></div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-h">grounded answer <span class="r">2 citations</span></div>
+      <div class="ans-b">
+        Optimistic rollups track the full history of state roots and each batch hash; an incorrect post-state root can be challenged with a fraud proof, reverting that batch and everything after it.<sup class="c">1</sup> ZK rollups instead attach a ZK-SNARK to every batch, proving the post-state root is correct — verified on-chain in constant time.<sup class="c">1</sup>
+        <div class="foot">
+          <div><b>1</b>&nbsp;&nbsp;an-incomplete-guide-to-rollups · vitalik.eth.limo&nbsp;&nbsp;$0.50&nbsp;&nbsp;<span class="tag">SETTLED</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel ledger">
+    <div class="panel-h">financial ledger <span class="r">arc testnet · usdc</span></div>
+    <table>
+      <thead><tr><th>event</th><th>amount</th><th>status</th><th>batch</th></tr></thead>
+      <tbody>
+        <tr><td>An Incomplete Guide to Rollups<div class="u">vitalik.eth.limo/general/2021/01/05/rollup.html</div></td><td class="amt">−$0.50</td><td><span class="tag">SETTLED</span></td><td class="hash">de979faf-db16</td></tr>
+        <tr><td>Platform fee<div class="u">compute + network</div></td><td class="amt">−$0.20</td><td><span class="tag ghost">FEE</span></td><td class="hash">—</td></tr>
+        <tr><td>Unspent budget refund<div class="u">auto-returned to wallet</div></td><td class="amt plus">+$0.30</td><td><span class="tag ghost">REFUND</span></td><td class="hash">41d01a12-9a26</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="stats">
+    <div class="stat"><div class="k">answers served</div><div class="v">1,284</div></div>
+    <div class="stat"><div class="k">paid to creators</div><div class="v"><span class="g">$412.90</span></div></div>
+    <div class="stat"><div class="k">avg answer cost</div><div class="v">$0.34</div></div>
+    <div class="stat"><div class="k">registered sources</div><div class="v">20</div></div>
+  </div>
+
+  <div class="footer"><span>citeflow_ai — the decentralized research terminal</span><span>circle w3s · arc testnet · 2026</span></div>
+</main>
+</body></html>

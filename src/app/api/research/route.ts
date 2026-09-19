@@ -9,7 +9,8 @@ const researchRequestSchema = z.object({
   query: z.string().min(5),
   maxBudget: z.number().min(0).max(100),
   challengeId: z.string().min(1),
-  userToken: z.string().min(1)
+  userToken: z.string().min(1),
+  network: z.string().optional()
 })
 
 // Transaction states that mean the funding transfer will never land
@@ -18,13 +19,19 @@ const DEAD_TX_STATES = ['FAILED', 'DENIED', 'CANCELLED']
 // Verify with Circle that the upfront budget transfer actually happened:
 // the challenge completed, and it produced a transaction paying the treasury
 // at least maxBudget. Returns the transaction id and the payer's address.
-async function verifyFundingPayment(userToken: string, challengeId: string, maxBudget: number) {
-  if (!process.env.CIRCLE_API_KEY) throw new Error('CIRCLE_API_KEY is not configured')
-  const treasuryAddress = process.env.AGENT_TREASURY_ADDRESS
+async function verifyFundingPayment(userToken: string, challengeId: string, maxBudget: number, isMainnet = false) {
+  const apiKey = isMainnet
+    ? (process.env.CIRCLE_API_KEY_MAINNET || process.env.CIRCLE_API_KEY)
+    : process.env.CIRCLE_API_KEY
+  const treasuryAddress = isMainnet
+    ? (process.env.AGENT_TREASURY_ADDRESS_MAINNET || process.env.AGENT_TREASURY_ADDRESS)
+    : process.env.AGENT_TREASURY_ADDRESS
+
+  if (!apiKey) throw new Error('Circle API key is not configured')
   if (!treasuryAddress) throw new Error('AGENT_TREASURY_ADDRESS is not configured')
 
   const circleClient = initiateUserControlledWalletsClient({
-    apiKey: process.env.CIRCLE_API_KEY,
+    apiKey,
   })
 
   const challengeRes = await circleClient.getUserChallenge({ userToken, challengeId })
@@ -77,12 +84,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid input', details: parsed.error.issues }, { status: 400 })
     }
 
-    const { query, maxBudget, challengeId, userToken } = parsed.data
+    const { query, maxBudget, challengeId, userToken, network: bodyNetwork } = parsed.data
+    const networkHeader = request.headers.get('x-network')
+    const activeNetwork = bodyNetwork || networkHeader || 'arc-testnet'
+    const isMainnet = activeNetwork === 'arc-mainnet'
 
     // Verify the upfront payment with Circle before doing any work
     let funding
     try {
-      funding = await verifyFundingPayment(userToken, challengeId, maxBudget)
+      funding = await verifyFundingPayment(userToken, challengeId, maxBudget, isMainnet)
     } catch (verifyError: any) {
       console.error('Funding verification failed:', verifyError?.response?.data || verifyError)
       return NextResponse.json({ error: `Payment verification failed: ${verifyError.message}` }, { status: 402 })
@@ -155,7 +165,8 @@ export async function POST(request: NextRequest) {
             maxBudget,
             refundAddress,
             (msg) => pushUpdate('progress', msg),
-            request.headers.get('cookie') || undefined
+            request.headers.get('cookie') || undefined,
+            activeNetwork
           )
 
           // Mark session complete and save the result payload

@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Direction 06 — The Aurora</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#0B0B14;--bg2:#11111D;--panel:rgba(255,255,255,.045);--panel-b:rgba(255,255,255,.1);--ink:#F2F1FA;--dim:#9C9BB0;--faint:#5C5B70;--violet:#8B5CF6;--cyan:#22D3EE;--magenta:#F472B6;--lime:#A3E635;--amber:#FBBF24;--grad:linear-gradient(100deg,#8B5CF6 0%,#F472B6 45%,#22D3EE 100%)}
+*{box-sizing:border-box;margin:0}
+body{background:var(--bg);color:var(--ink);font-family:Inter,sans-serif;-webkit-font-smoothing:antialiased;overflow-x:hidden}
+.mono{font-family:'JetBrains Mono',monospace}
+.wrap{max-width:1100px;margin:0 auto;padding:0 2rem;position:relative;z-index:2}
+
+/* aurora blobs */
+.blob{position:fixed;border-radius:50%;filter:blur(110px);opacity:.4;z-index:0;pointer-events:none}
+.b1{width:560px;height:560px;background:#8B5CF6;top:-220px;left:-140px}
+.b2{width:480px;height:480px;background:#F472B6;top:-140px;right:-120px;opacity:.28}
+.b3{width:520px;height:520px;background:#22D3EE;top:44%;left:56%;opacity:.16}
+
+/* nav */
+nav{display:flex;align-items:center;gap:2rem;padding:1.2rem 2rem;position:relative;z-index:3}
+.logo{display:flex;align-items:center;gap:.65rem;font-family:Sora;font-weight:800;font-size:1.15rem;letter-spacing:-.02em}
+.logo .mark{width:36px;height:36px;border-radius:11px;background:var(--grad);display:flex;align-items:center;justify-content:center;box-shadow:0 0 26px rgba(139,92,246,.55)}
+.logo .grad-t{background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent}
+.links{display:flex;gap:.4rem;margin-left:.8rem}
+.links a{color:var(--dim);text-decoration:none;font-size:.86rem;font-weight:500;padding:.5rem 1rem;border-radius:999px}
+.links a.on{color:var(--ink);background:var(--panel);border:1px solid var(--panel-b)}
+.links a:hover:not(.on){color:var(--ink)}
+.wallet{margin-left:auto;display:flex;align-items:center;gap:.6rem;font-family:'JetBrains Mono',monospace;font-size:.74rem;background:var(--panel);border:1px solid var(--panel-b);border-radius:999px;padding:.5rem 1rem;backdrop-filter:blur(10px)}
+.dotl{width:7px;height:7px;border-radius:50%;background:var(--lime);box-shadow:0 0 10px var(--lime)}
+
+/* hero */
+.hero{text-align:center;padding:4.6rem 0 3.2rem}
+.chip{display:inline-flex;align-items:center;gap:.55rem;font-family:'JetBrains Mono',monospace;font-size:.68rem;color:var(--dim);background:var(--panel);border:1px solid var(--panel-b);border-radius:999px;padding:.4rem 1rem;backdrop-filter:blur(10px)}
+.chip b{background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent}
+h1{font-family:Sora;font-weight:800;font-size:3.7rem;letter-spacing:-.035em;line-height:1.05;margin-top:1.6rem}
+h1 .grad-t{background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent}
+.sub{color:var(--dim);font-size:1.05rem;max-width:50ch;margin:1.3rem auto 0;line-height:1.7}
+.qcard{max-width:780px;margin:2.6rem auto 0;padding:1.5px;border-radius:18px;background:var(--grad);box-shadow:0 0 40px rgba(139,92,246,.3),0 0 80px rgba(244,114,182,.12)}
+.qcard-in{display:flex;align-items:center;gap:.6rem;background:#14141F;border-radius:17px;padding:.55rem}
+.qcard input{flex:1;border:0;background:transparent;color:var(--ink);font-size:.95rem;padding:.8rem 1rem;outline:none;font-family:Inter}
+.qcard .budget{font-family:'JetBrains Mono',monospace;font-size:.85rem;color:var(--dim);border:1px solid var(--panel-b);border-radius:11px;padding:.6rem .9rem;background:var(--panel)}
+.qcard button{border:0;background:var(--grad);color:#0B0B14;font-family:Sora;font-weight:700;font-size:.88rem;padding:.8rem 1.6rem;border-radius:12px;cursor:pointer}
+.qcard button:hover{filter:brightness(1.12)}
+.trust{margin-top:1.2rem;font-family:'JetBrains Mono',monospace;font-size:.64rem;color:var(--faint);letter-spacing:.08em}
+
+/* bento grid */
+.bento{display:grid;grid-template-columns:repeat(12,1fr);gap:1.2rem;margin-top:3.2rem}
+.cell{background:var(--panel);border:1px solid var(--panel-b);border-radius:20px;backdrop-filter:blur(14px);overflow:hidden;position:relative}
+.cell-h{display:flex;align-items:center;gap:.6rem;padding:1rem 1.3rem;font-family:Sora;font-weight:700;font-size:.9rem;border-bottom:1px solid var(--panel-b)}
+.cell-h .r{margin-left:auto;font-family:'JetBrains Mono',monospace;font-size:.62rem;color:var(--faint);font-weight:400}
+.glowline{position:absolute;top:0;left:10%;right:10%;height:1px;background:var(--grad);opacity:.7}
+.c-term{grid-column:span 7}
+.c-ans{grid-column:span 5}
+.c-led{grid-column:span 8}
+.c-stat{grid-column:span 4}
+
+/* terminal */
+.term-b{padding:1.1rem 1.3rem 1.3rem;font-family:'JetBrains Mono',monospace;font-size:.77rem;display:flex;flex-direction:column;gap:.55rem;line-height:1.55}
+.ln{display:flex;gap:.9rem}
+.no{color:var(--faint);flex-shrink:0}
+.vio{color:var(--violet)}.cy{color:var(--cyan)}.mg{color:var(--magenta)}.lm{color:var(--lime)}.dim2{color:var(--dim)}
+.cursor{display:inline-block;width:8px;height:14px;background:var(--cyan);animation:bl 1s steps(1) infinite;vertical-align:middle;box-shadow:0 0 12px var(--cyan)}
+@keyframes bl{50%{opacity:0}}
+
+/* answer */
+.ans-b{padding:1.3rem 1.5rem 1.5rem;font-size:.9rem;line-height:1.8;color:var(--dim)}
+.ans-b .lead{color:var(--ink);font-weight:600;display:block;margin-bottom:.6rem;font-size:.98rem}
+sup.c{font-family:'JetBrains Mono',monospace;font-size:.62em;background:var(--grad);color:#0B0B14;padding:.1em .45em;border-radius:5px;margin-left:.2em;font-weight:700}
+.src{display:flex;align-items:center;gap:.8rem;margin-top:1.2rem;padding:.85rem 1rem;background:rgba(255,255,255,.04);border:1px solid var(--panel-b);border-radius:13px}
+.src .ic{width:34px;height:34px;border-radius:9px;background:var(--grad);display:flex;align-items:center;justify-content:center;color:#0B0B14;font-weight:800;font-family:Sora;flex-shrink:0}
+.src .t{font-weight:600;font-size:.82rem;color:var(--ink)}
+.src .u{font-family:'JetBrains Mono',monospace;font-size:.62rem;color:var(--faint);margin-top:.15rem}
+.src .amt{margin-left:auto;text-align:right;font-family:'JetBrains Mono',monospace;font-weight:700;color:var(--ink)}
+.paid{display:inline-block;font-family:'JetBrains Mono',monospace;font-size:.56rem;font-weight:700;letter-spacing:.08em;background:rgba(163,230,53,.15);color:var(--lime);border:1px solid rgba(163,230,53,.35);border-radius:999px;padding:.16em .6em;margin-top:.25rem}
+
+/* ledger */
+table{width:100%;border-collapse:collapse;font-size:.84rem}
+th{font-family:'JetBrains Mono',monospace;font-size:.6rem;letter-spacing:.16em;text-transform:uppercase;color:var(--faint);text-align:left;padding:.7rem 1.3rem;border-bottom:1px solid var(--panel-b)}
+td{padding:.85rem 1.3rem;border-bottom:1px solid rgba(255,255,255,.05)}
+tr:last-child td{border:0}
+td .u{font-family:'JetBrains Mono',monospace;font-size:.64rem;color:var(--faint);margin-top:.15rem}
+.amt2{font-family:'JetBrains Mono',monospace;font-weight:600}
+.amt2.plus{color:var(--lime)}
+.tagx{font-family:'JetBrains Mono',monospace;font-size:.56rem;font-weight:700;letter-spacing:.08em;border-radius:999px;padding:.18em .65em}
+.tag-set{background:rgba(163,230,53,.15);color:var(--lime);border:1px solid rgba(163,230,53,.35)}
+.tag-fee{background:rgba(251,191,36,.12);color:var(--amber);border:1px solid rgba(251,191,36,.3)}
+.tag-ref{background:rgba(34,211,238,.12);color:var(--cyan);border:1px solid rgba(34,211,238,.3)}
+
+/* stats cell */
+.stats{padding:1.2rem 1.3rem;display:flex;flex-direction:column;gap:1rem;height:100%;justify-content:center}
+.srow{display:flex;justify-content:space-between;align-items:baseline}
+.srow .k{font-size:.78rem;color:var(--dim)}
+.srow .v{font-family:Sora;font-weight:800;font-size:1.35rem}
+.srow .v.g1{background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent}
+.footer{margin:3.6rem 0 2.6rem;display:flex;justify-content:space-between;font-family:'JetBrains Mono',monospace;font-size:.64rem;color:var(--faint)}
+</style>
+</head>
+<body>
+<div class="blob b1"></div><div class="blob b2"></div><div class="blob b3"></div>
+
+<nav>
+  <span class="logo"><span class="mark"><svg width="20" height="20" viewBox="0 0 64 64"><text x="30" y="58" font-family="Sora,sans-serif" font-weight="800" font-size="66" text-anchor="middle" fill="#0B0B14">&#8221;</text></svg></span>Cite<span class="grad-t">Flow</span></span>
+  <div class="links"><a class="on" href="#">Agent</a><a href="#">Register</a><a href="#">Dashboard</a><a href="#">Docs</a></div>
+  <span class="wallet"><span class="dotl"></span>0x93…9682 · $4.20 USDC</span>
+</nav>
+
+<main class="wrap">
+  <section class="hero">
+    <span class="chip"><span class="dotl"></span> LIVE ON ARC TESTNET · <b>1,284 settlements</b></span>
+    <h1>Research that<br><span class="grad-t">pays its sources.</span></h1>
+    <p class="sub">Ask anything. The agent grounds every claim in registered work and streams USDC nanopayments to the creators it cites — with the receipt to prove it.</p>
+    <div class="qcard"><div class="qcard-in">
+      <input value="What are the exact differences in state root publishing between rollup types?">
+      <span class="budget">$ 1.00</span>
+      <button>Ask the Agent</button>
+    </div></div>
+    <div class="trust">CIRCLE W3S · NO SUBSCRIPTION · UNSPENT BUDGET AUTO-REFUNDED</div>
+  </section>
+
+  <div class="bento">
+    <div class="cell c-term"><span class="glowline"></span>
+      <div class="cell-h">⚡ Live Execution <span class="r">session 4ff48147 · streaming</span></div>
+      <div class="term-b">
+        <div class="ln"><span class="no">01</span><span class="dim2">agent initialized · treasury connected · $1.00 escrowed</span></div>
+        <div class="ln"><span class="no">02</span><span class="dim2">20 sources found · evaluating…</span></div>
+        <div class="ln"><span class="no">03</span><span class="vio">rollup-guide</span><span>score <span class="mg">0.91</span> → <span class="lm">ACCEPT</span></span></div>
+        <div class="ln"><span class="no">04</span><span class="vio">age-of-ai</span><span>score <span class="mg">0.00</span> → <span style="color:var(--amber)">SKIP</span></span></div>
+        <div class="ln"><span class="no">05</span><span class="lm">✓ $0.50 settled → vitalik.eth · batch de979faf</span></div>
+        <div class="ln"><span class="no">06</span><span class="cy">↩ $0.30 refunded → 0x93…9682</span></div>
+        <div class="ln"><span class="no">07</span><span class="cursor"></span></div>
+      </div>
+    </div>
+
+    <div class="cell c-ans"><span class="glowline"></span>
+      <div class="cell-h">Grounded Answer <span class="r">1 citation</span></div>
+      <div class="ans-b">
+        <span class="lead">Rollup types differ fundamentally in state root verification.</span>
+        Optimistic rollups track all state roots; bad roots get challenged with fraud proofs and reverted.<sup class="c">1</sup> ZK rollups prove each batch correct up-front with a ZK-SNARK, verified instantly.<sup class="c">1</sup>
+        <div class="src">
+          <span class="ic">”</span>
+          <span><span class="t">An Incomplete Guide to Rollups</span><div class="u">vitalik.eth.limo</div></span>
+          <span class="amt">$0.50<br><span class="paid">SETTLED</span></span>
+        </div>
+      </div>
+    </div>
+
+    <div class="cell c-led">
+      <div class="cell-h">Financial Ledger <span class="r">arc testnet · usdc</span></div>
+      <table>
+        <thead><tr><th>Event</th><th>Amount</th><th>Status</th><th>Batch</th></tr></thead>
+        <tbody>
+          <tr><td>An Incomplete Guide to Rollups<div class="u">vitalik.eth.limo/…/rollup.html</div></td><td class="amt2">−$0.50</td><td><span class="tagx tag-set">SETTLED</span></td><td class="u">de979faf</td></tr>
+          <tr><td>Platform fee<div class="u">compute + network</div></td><td class="amt2">−$0.20</td><td><span class="tagx tag-fee">FEE</span></td><td class="u">—</td></tr>
+          <tr><td>Unspent budget refund<div class="u">auto-returned</div></td><td class="amt2 plus">+$0.30</td><td><span class="tagx tag-ref">REFUND</span></td><td class="u">41d01a12</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="cell c-stat">
+      <div class="stats">
+        <div class="srow"><span class="k">Answers served</span><span class="v">1,284</span></div>
+        <div class="srow"><span class="k">Paid to creators</span><span class="v g1">$412.90</span></div>
+        <div class="srow"><span class="k">Avg answer cost</span><span class="v">$0.34</span></div>
+        <div class="srow"><span class="k">Registered sources</span><span class="v">20</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer"><span>CiteFlow — The Decentralized Research Terminal</span><span>Circle W3S · Arc Testnet · 2026</span></div>
+</main>
+</body></html>
