@@ -57,10 +57,15 @@ export async function GET(request: NextRequest) {
   const authorization = result.paymentPayload.payload?.authorization as { from?: string } | undefined
   const payerAddress = authorization?.from
 
+  const isMainnet = result.paymentRequirements.network === 'eip155:5042' ||
+    request.headers.get('x-network') === 'arc-mainnet' ||
+    request.nextUrl.searchParams.get('network') === 'arc-mainnet'
+  const activeNetwork = isMainnet ? 'arc-mainnet' : 'arc-testnet'
+
   const supabase = createAdminClient()
   const { data: session, error: sessionError } = await supabase
     .from('research_sessions')
-    .insert({ user_id: null, query, budget_usdc: budget, status: 'active' })
+    .insert({ user_id: null, query, budget_usdc: budget, status: 'active', network: activeNetwork })
     .select('id')
     .single()
 
@@ -69,8 +74,6 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const isMainnet = result.paymentRequirements.network === 'eip155:5042'
-    const activeNetwork = isMainnet ? 'arc-mainnet' : 'arc-testnet'
 
     const agentResult = await runResearchAgent(
       session.id,
