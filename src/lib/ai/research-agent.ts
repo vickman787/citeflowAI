@@ -222,6 +222,33 @@ export async function runResearchAgent(
     }
   }
 
+  // If no registered sources are available or deemed relevant, prevent hallucinations and issue immediate refund
+  if (relevantSources.length === 0) {
+    if (onProgress) {
+      onProgress(sources.length === 0
+        ? 'No registered sources found in the corpus for this network. Issuing full refund...'
+        : 'No registered sources in the corpus were relevant to this query. Issuing full refund...'
+      );
+    }
+
+    if (walletAddress && initialBudget >= 0.05) {
+      try {
+        await executeGatewayTransfer(walletAddress, initialBudget.toFixed(2), network);
+        if (onProgress) onProgress(`Refunded $${initialBudget.toFixed(2)} to your wallet.`);
+      } catch (refundErr: any) {
+        console.error("Zero sources refund failed:", refundErr);
+      }
+    }
+
+    return {
+      answer: sources.length === 0
+        ? 'No sources are currently registered in the corpus on Arc Mainnet. CiteFlow AI only synthesizes answers strictly grounded in verified registered sources to guarantee factual attribution and creator compensation. Your full budget has been refunded.'
+        : 'No registered sources in the corpus contained information relevant to your query. CiteFlow AI does not generate ungrounded answers. Your full budget has been refunded.',
+      citationsUsed: [],
+      purchasedSources: []
+    }
+  }
+
   // 3. Generate Final Grounded Answer
   if (onProgress) onProgress(`Synthesis phase. Generating factual answer grounded exclusively in relevant citations...`)
   
