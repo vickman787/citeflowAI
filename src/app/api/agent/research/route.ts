@@ -65,12 +65,13 @@ export async function GET(request: NextRequest) {
   const supabase = createAdminClient()
   const { data: session, error: sessionError } = await supabase
     .from('research_sessions')
-    .insert({ user_id: null, query, budget_usdc: budget, status: 'active', network: activeNetwork })
+    .insert({ user_id: null, query, budget_usdc: budget, status: 'active' })
     .select('id')
     .single()
 
   if (sessionError || !session) {
-    return NextResponse.json({ error: 'Failed to create research session' }, { status: 500 })
+    console.error('Failed to create research session:', sessionError)
+    return NextResponse.json({ error: 'Failed to create research session', details: sessionError?.message }, { status: 500 })
   }
 
   try {
@@ -80,6 +81,7 @@ export async function GET(request: NextRequest) {
       query,
       budget,
       payerAddress,
+      undefined,
       undefined,
       activeNetwork
     )
