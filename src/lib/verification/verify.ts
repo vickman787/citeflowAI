@@ -1,6 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { safeFetch } from '@/lib/net/safe-fetch'
-import { resolveByStructure, resolveXPost, isXUrl, resolveArcPost, isArcUrl, type Platform } from './resolve'
+import { resolveByStructure, resolveXPost, isXUrl, resolveArcPost, isArcUrl, resolveYouTubeVideo, isYouTubeUrl, resolveLensPost, isLensUrl, type Platform } from './resolve'
 
 // Deterministic per-creator code. Not a one-time secret like an OTP — it's
 // a durable proof token (same idea as a domain TXT record), checked live
@@ -128,14 +128,247 @@ async function verifyArc(proofUrl: string, code: string): Promise<VerifyResult> 
   return { platform: 'arc', identifier: authorId, proofUrl: canonicalUrl }
 }
 
+// ---------------------------------------------------------------------------
+// Ghost — fetch post and search for verification code in HTML body
+// ---------------------------------------------------------------------------
+async function verifyGhost(proofUrl: string, code: string): Promise<VerifyResult> {
+  let hostname: string
+  try { hostname = new URL(proofUrl).hostname.toLowerCase().replace(/^www\./, '') } catch {
+    throw new Error('Enter a valid Ghost blog URL.')
+  }
+  if (!hostname.endsWith('.ghost.io')) {
+    throw new Error('Enter a ghost.io post URL (yourname.ghost.io/post-slug) for Ghost verification.')
+  }
+  const res = await safeFetch(proofUrl)
+  if (!res.ok) throw new Error(`Could not fetch that Ghost post (status ${res.status}).`)
+  const html = await res.text()
+  if (!html.includes(code)) {
+    throw new Error(`Verification code not found. Add "${code}" anywhere in the post body, then try again.`)
+  }
+  return { platform: 'ghost', identifier: hostname, proofUrl }
+}
+
+// ---------------------------------------------------------------------------
+// Mirror.xyz — fetch entry and search for code; identifier is the 0x wallet address
+// ---------------------------------------------------------------------------
+async function verifyMirror(proofUrl: string, code: string): Promise<VerifyResult> {
+  let url: URL
+  try { url = new URL(proofUrl) } catch {
+    throw new Error('Enter a valid Mirror.xyz entry URL.')
+  }
+  const hostname = url.hostname.toLowerCase().replace(/^www\./, '')
+  if (hostname !== 'mirror.xyz') {
+    throw new Error('That does not look like a Mirror.xyz entry URL (mirror.xyz/0xYourAddress/entry-slug).')
+  }
+  const segments = url.pathname.split('/').filter(Boolean)
+  if (!segments[0]?.startsWith('0x')) {
+    throw new Error('Enter a Mirror.xyz entry URL that includes your wallet address (mirror.xyz/0xYourAddress/entry-slug).')
+  }
+  const identifier = segments[0].toLowerCase()
+  const res = await safeFetch(proofUrl)
+  if (!res.ok) throw new Error(`Could not fetch that Mirror entry (status ${res.status}).`)
+  const html = await res.text()
+  if (!html.includes(code)) {
+    throw new Error(`Verification code not found. Add "${code}" to the entry body, then try again.`)
+  }
+  return { platform: 'mirror', identifier, proofUrl }
+}
+
+// ---------------------------------------------------------------------------
+// Paragraph.xyz — paragraph.xyz/@handle/post-slug
+// ---------------------------------------------------------------------------
+async function verifyParagraph(proofUrl: string, code: string): Promise<VerifyResult> {
+  let url: URL
+  try { url = new URL(proofUrl) } catch {
+    throw new Error('Enter a valid Paragraph.xyz post URL.')
+  }
+  const hostname = url.hostname.toLowerCase().replace(/^www\./, '')
+  if (hostname !== 'paragraph.xyz') {
+    throw new Error('That does not look like a Paragraph.xyz post URL (paragraph.xyz/@yourhandle/post-slug).')
+  }
+  const segments = url.pathname.split('/').filter(Boolean)
+  if (!segments[0]?.startsWith('@')) {
+    throw new Error('Enter a Paragraph.xyz post URL with your handle (paragraph.xyz/@yourhandle/post-slug).')
+  }
+  const identifier = segments[0].toLowerCase()
+  const res = await safeFetch(proofUrl)
+  if (!res.ok) throw new Error(`Could not fetch that Paragraph post (status ${res.status}).`)
+  const html = await res.text()
+  if (!html.includes(code)) {
+    throw new Error(`Verification code not found. Add "${code}" to the post body, then try again.`)
+  }
+  return { platform: 'paragraph', identifier, proofUrl }
+}
+
+// ---------------------------------------------------------------------------
+// Hashnode — yourhandle.hashnode.dev/post-slug
+// ---------------------------------------------------------------------------
+async function verifyHashnode(proofUrl: string, code: string): Promise<VerifyResult> {
+  let hostname: string
+  try { hostname = new URL(proofUrl).hostname.toLowerCase().replace(/^www\./, '') } catch {
+    throw new Error('Enter a valid Hashnode post URL.')
+  }
+  if (!hostname.endsWith('.hashnode.dev')) {
+    throw new Error('Enter a Hashnode post URL on your yourhandle.hashnode.dev domain.')
+  }
+  const res = await safeFetch(proofUrl)
+  if (!res.ok) throw new Error(`Could not fetch that Hashnode post (status ${res.status}).`)
+  const html = await res.text()
+  if (!html.includes(code)) {
+    throw new Error(`Verification code not found. Add "${code}" to the post body, then try again.`)
+  }
+  return { platform: 'hashnode', identifier: hostname, proofUrl }
+}
+
+// ---------------------------------------------------------------------------
+// Dev.to — dev.to/handle/post-slug
+// ---------------------------------------------------------------------------
+async function verifyDevTo(proofUrl: string, code: string): Promise<VerifyResult> {
+  let url: URL
+  try { url = new URL(proofUrl) } catch {
+    throw new Error('Enter a valid Dev.to post URL.')
+  }
+  const hostname = url.hostname.toLowerCase().replace(/^www\./, '')
+  if (hostname !== 'dev.to') {
+    throw new Error('That does not look like a Dev.to post URL (dev.to/yourhandle/post-slug).')
+  }
+  const segments = url.pathname.split('/').filter(Boolean)
+  if (!segments[0]) {
+    throw new Error('Enter a Dev.to post URL with your handle (dev.to/yourhandle/post-slug).')
+  }
+  const identifier = segments[0].toLowerCase()
+  const res = await safeFetch(proofUrl)
+  if (!res.ok) throw new Error(`Could not fetch that Dev.to post (status ${res.status}).`)
+  const html = await res.text()
+  if (!html.includes(code)) {
+    throw new Error(`Verification code not found. Add "${code}" to the post body, then try again.`)
+  }
+  return { platform: 'devto', identifier, proofUrl }
+}
+
+// ---------------------------------------------------------------------------
+// Beehiiv — yourpublication.beehiiv.com/p/post-slug
+// ---------------------------------------------------------------------------
+async function verifyBeehiiv(proofUrl: string, code: string): Promise<VerifyResult> {
+  let hostname: string
+  try { hostname = new URL(proofUrl).hostname.toLowerCase().replace(/^www\./, '') } catch {
+    throw new Error('Enter a valid Beehiiv post URL.')
+  }
+  if (!hostname.endsWith('.beehiiv.com')) {
+    throw new Error('Enter a Beehiiv post URL on your yourpublication.beehiiv.com domain.')
+  }
+  const res = await safeFetch(proofUrl)
+  if (!res.ok) throw new Error(`Could not fetch that Beehiiv post (status ${res.status}).`)
+  const html = await res.text()
+  if (!html.includes(code)) {
+    throw new Error(`Verification code not found. Add "${code}" to the post body, then try again.`)
+  }
+  return { platform: 'beehiiv', identifier: hostname, proofUrl }
+}
+
+// ---------------------------------------------------------------------------
+// Farcaster / Warpcast — warpcast.com/handle/cast-hash
+// ---------------------------------------------------------------------------
+async function verifyFarcaster(proofUrl: string, code: string): Promise<VerifyResult> {
+  let url: URL
+  try { url = new URL(proofUrl) } catch {
+    throw new Error('Enter a valid Warpcast cast URL.')
+  }
+  const hostname = url.hostname.toLowerCase().replace(/^www\./, '')
+  if (hostname !== 'warpcast.com') {
+    throw new Error('That does not look like a Warpcast cast URL (warpcast.com/yourhandle/cast-hash).')
+  }
+  const segments = url.pathname.split('/').filter(Boolean)
+  if (!segments[0] || segments[0].startsWith('0x')) {
+    throw new Error('Enter a Warpcast cast URL (warpcast.com/yourhandle/0xcasthash).')
+  }
+  const identifier = segments[0].toLowerCase()
+  const res = await safeFetch(proofUrl)
+  if (!res.ok) throw new Error(`Could not fetch that Warpcast cast (status ${res.status}).`)
+  const html = await res.text()
+  if (!html.includes(code)) {
+    throw new Error(`Verification code not found in that cast. Post the code "${code}" as a cast, then try again.`)
+  }
+  return { platform: 'farcaster', identifier, proofUrl }
+}
+
+// ---------------------------------------------------------------------------
+// YouTube — oEmbed gives us the channel handle; code must be in video description
+// ---------------------------------------------------------------------------
+async function verifyYouTube(proofUrl: string, code: string): Promise<VerifyResult> {
+  const hostname = (() => { try { return new URL(proofUrl).hostname.toLowerCase().replace(/^www\./, '') } catch { return '' } })()
+  if (!['youtube.com', 'youtu.be'].includes(hostname)) {
+    throw new Error('That does not look like a YouTube video URL.')
+  }
+  const { channelHandle } = await resolveYouTubeVideo(proofUrl)
+  // YouTube embeds the description in the page HTML (ytInitialData) — a plain include check works
+  const res = await safeFetch(proofUrl)
+  if (!res.ok) throw new Error(`Could not fetch that YouTube video page (status ${res.status}).`)
+  const html = await res.text()
+  if (!html.includes(code)) {
+    throw new Error(`Verification code not found. Add "${code}" to the video description, then try again.`)
+  }
+  return { platform: 'youtube', identifier: channelHandle, proofUrl }
+}
+
+// ---------------------------------------------------------------------------
+// Lens / Hey.xyz — resolve author handle from __NEXT_DATA__, code in post body
+// ---------------------------------------------------------------------------
+async function verifyLens(proofUrl: string, code: string): Promise<VerifyResult> {
+  const hostname = (() => { try { return new URL(proofUrl).hostname.toLowerCase().replace(/^www\./, '') } catch { return '' } })()
+  if (!['hey.xyz'].includes(hostname)) {
+    throw new Error('That does not look like a Hey.xyz post URL (hey.xyz/posts/postId).')
+  }
+  const res = await safeFetch(proofUrl)
+  if (!res.ok) throw new Error(`Could not fetch that Hey.xyz post (status ${res.status}).`)
+  const html = await res.text()
+  if (!html.includes(code)) {
+    throw new Error(`Verification code not found. Add "${code}" to the post body, then try again.`)
+  }
+  // Extract author handle from __NEXT_DATA__
+  let authorHandle = ''
+  const ndMatch = html.match(/<script id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/)
+  if (ndMatch) {
+    try {
+      const nd = JSON.parse(ndMatch[1])
+      const pp = nd?.props?.pageProps
+      authorHandle = (
+        pp?.profile?.handle?.localName ||
+        pp?.publication?.by?.handle?.localName ||
+        pp?.post?.by?.handle?.localName ||
+        pp?.profile?.handle || ''
+      ).toLowerCase()
+    } catch {}
+  }
+  if (!authorHandle) {
+    const ogM = html.match(/<meta[^>]+property=["']og:url["'][^>]+content=["']([^"']+)["']/i)
+             || html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:url["']/i)
+    const m = ogM?.[1]?.match(/hey\.xyz\/u\/([a-zA-Z0-9_.]+)/i)
+    if (m) authorHandle = m[1].toLowerCase()
+  }
+  if (!authorHandle) {
+    throw new Error('Could not determine the author of that Hey.xyz post. Make sure the post is publicly visible.')
+  }
+  return { platform: 'lens', identifier: authorHandle, proofUrl }
+}
+
 export async function verifyIdentity(platform: Platform, proofUrl: string, creatorId: string): Promise<VerifyResult> {
   const code = generateVerificationCode(creatorId)
   switch (platform) {
-    case 'domain': return verifyDomain(proofUrl, code)
-    case 'x': return verifyX(proofUrl, code)
-    case 'medium': return verifyMedium(proofUrl, code)
-    case 'substack': return verifySubstack(proofUrl, code)
-    case 'arc': return verifyArc(proofUrl, code)
+    case 'domain':    return verifyDomain(proofUrl, code)
+    case 'x':         return verifyX(proofUrl, code)
+    case 'medium':    return verifyMedium(proofUrl, code)
+    case 'substack':  return verifySubstack(proofUrl, code)
+    case 'arc':       return verifyArc(proofUrl, code)
+    case 'ghost':     return verifyGhost(proofUrl, code)
+    case 'mirror':    return verifyMirror(proofUrl, code)
+    case 'paragraph': return verifyParagraph(proofUrl, code)
+    case 'hashnode':  return verifyHashnode(proofUrl, code)
+    case 'devto':     return verifyDevTo(proofUrl, code)
+    case 'beehiiv':   return verifyBeehiiv(proofUrl, code)
+    case 'farcaster': return verifyFarcaster(proofUrl, code)
+    case 'youtube':   return verifyYouTube(proofUrl, code)
+    case 'lens':      return verifyLens(proofUrl, code)
   }
 }
 
@@ -206,6 +439,24 @@ export async function resolveOwningIdentity(
       resolved = { platform: 'arc', identifier: authorId }
     } catch (e: any) {
       return { allowed: false, reason: `Could not verify ownership of this Arc House post: ${e.message}` }
+    }
+  }
+
+  if (!resolved && isYouTubeUrl(targetUrl)) {
+    try {
+      const { channelHandle } = await resolveYouTubeVideo(targetUrl)
+      resolved = { platform: 'youtube', identifier: channelHandle }
+    } catch (e: any) {
+      return { allowed: false, reason: `Could not verify ownership of this YouTube video: ${e.message}` }
+    }
+  }
+
+  if (!resolved && isLensUrl(targetUrl)) {
+    try {
+      const { authorHandle } = await resolveLensPost(targetUrl)
+      resolved = { platform: 'lens', identifier: authorHandle }
+    } catch (e: any) {
+      return { allowed: false, reason: `Could not verify ownership of this Hey.xyz post: ${e.message}` }
     }
   }
 

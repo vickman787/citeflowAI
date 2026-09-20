@@ -6,7 +6,7 @@ import { safeFetch } from '@/lib/net/safe-fetch'
 // always derived from the canonical source (oEmbed author, URL structure),
 // never trusted blindly from user input.
 
-export type Platform = 'domain' | 'x' | 'medium' | 'substack' | 'arc'
+export type Platform = 'domain' | 'x' | 'medium' | 'substack' | 'arc' | 'ghost' | 'mirror' | 'paragraph' | 'hashnode' | 'devto' | 'beehiiv' | 'farcaster' | 'youtube' | 'lens'
 
 export interface ResolvedIdentity {
   platform: Platform
@@ -15,6 +15,12 @@ export interface ResolvedIdentity {
 
 const X_HOSTS = new Set(['x.com', 'twitter.com', 'www.x.com', 'www.twitter.com'])
 const ARC_HOSTS = new Set(['community.arc.io'])
+const MIRROR_HOSTS = new Set(['mirror.xyz', 'www.mirror.xyz'])
+const PARAGRAPH_HOSTS = new Set(['paragraph.xyz', 'www.paragraph.xyz'])
+const DEVTO_HOSTS = new Set(['dev.to', 'www.dev.to'])
+const FARCASTER_HOSTS = new Set(['warpcast.com', 'www.warpcast.com'])
+const YOUTUBE_HOSTS = new Set(['youtube.com', 'www.youtube.com', 'youtu.be'])
+const LENS_HOSTS = new Set(['hey.xyz', 'www.hey.xyz'])
 
 function stripWww(hostname: string): string {
   return hostname.toLowerCase().replace(/^www\./, '')
@@ -32,13 +38,73 @@ export function resolveByStructure(targetUrl: string): ResolvedIdentity | null {
   }
 
   const hostname = stripWww(parsed.hostname)
+  const segments = parsed.pathname.split('/').filter(Boolean)
 
   if (X_HOSTS.has(hostname)) {
-    return null // must be resolved via oEmbed — see resolveXIdentity
+    return null // must be resolved via oEmbed — see resolveXPost
   }
 
   if (ARC_HOSTS.has(hostname)) {
     return null // must be resolved via the post page — see resolveArcPost
+  }
+
+  if (YOUTUBE_HOSTS.has(hostname)) {
+    return null // channel not derivable from watch URL — see resolveYouTubeVideo
+  }
+
+  if (LENS_HOSTS.has(hostname)) {
+    // profile page: hey.xyz/u/handle
+    if (segments[0] === 'u' && segments[1]) {
+      return { platform: 'lens', identifier: segments[1].toLowerCase() }
+    }
+    return null // post URLs need a network call — see resolveLensPost
+  }
+
+  // Ghost.io hosted blogs
+  if (hostname.endsWith('.ghost.io')) {
+    return { platform: 'ghost', identifier: hostname }
+  }
+
+  // Mirror.xyz — mirror.xyz/0xAddress/entry-slug
+  if (MIRROR_HOSTS.has(hostname)) {
+    if (segments.length >= 1 && segments[0].startsWith('0x')) {
+      return { platform: 'mirror', identifier: segments[0].toLowerCase() }
+    }
+    return null
+  }
+
+  // Paragraph.xyz — paragraph.xyz/@handle/post-slug
+  if (PARAGRAPH_HOSTS.has(hostname)) {
+    if (segments.length >= 1 && segments[0].startsWith('@')) {
+      return { platform: 'paragraph', identifier: segments[0].toLowerCase() }
+    }
+    return null
+  }
+
+  // Hashnode — yourhandle.hashnode.dev/post-slug
+  if (hostname.endsWith('.hashnode.dev')) {
+    return { platform: 'hashnode', identifier: hostname }
+  }
+
+  // Dev.to — dev.to/handle/post-slug
+  if (DEVTO_HOSTS.has(hostname)) {
+    if (segments.length >= 1) {
+      return { platform: 'devto', identifier: segments[0].toLowerCase() }
+    }
+    return null
+  }
+
+  // Beehiiv — yourpublication.beehiiv.com/p/post-slug
+  if (hostname.endsWith('.beehiiv.com')) {
+    return { platform: 'beehiiv', identifier: hostname }
+  }
+
+  // Farcaster / Warpcast — warpcast.com/handle/cast-hash
+  if (FARCASTER_HOSTS.has(hostname)) {
+    if (segments.length >= 1 && !segments[0].startsWith('0x')) {
+      return { platform: 'farcaster', identifier: segments[0].toLowerCase() }
+    }
+    return null
   }
 
   if (hostname.endsWith('.substack.com')) {
@@ -47,15 +113,14 @@ export function resolveByStructure(targetUrl: string): ResolvedIdentity | null {
   }
 
   if (hostname === 'medium.com') {
-    // medium.com/@handle/... or medium.com/@handle
     const match = parsed.pathname.match(/^\/(@[a-zA-Z0-9_.-]+)/)
     if (match) {
       return { platform: 'medium', identifier: match[1].toLowerCase() }
     }
-    return null // publication URL with no @handle in path — can't resolve by structure alone
+    return null
   }
 
-  // Custom-domain Medium blogs, personal blogs, news sites, etc.
+  // Custom-domain blogs, personal sites, etc.
   return { platform: 'domain', identifier: hostname }
 }
 
@@ -70,6 +135,54 @@ export function isXUrl(targetUrl: string): boolean {
 export function isArcUrl(targetUrl: string): boolean {
   try {
     return ARC_HOSTS.has(stripWww(new URL(targetUrl).hostname))
+  } catch {
+    return false
+  }
+}
+
+export function isYouTubeUrl(targetUrl: string): boolean {
+  try {
+    return YOUTUBE_HOSTS.has(stripWww(new URL(targetUrl).hostname))
+  } catch {
+    return false
+  }
+}
+
+export function isLensUrl(targetUrl: string): boolean {
+  try {
+    return LENS_HOSTS.has(stripWww(new URL(targetUrl).hostname))
+  } catch {
+    return false
+  }
+}
+
+export function isMirrorUrl(targetUrl: string): boolean {
+  try {
+    return MIRROR_HOSTS.has(stripWww(new URL(targetUrl).hostname))
+  } catch {
+    return false
+  }
+}
+
+export function isParagraphUrl(targetUrl: string): boolean {
+  try {
+    return PARAGRAPH_HOSTS.has(stripWww(new URL(targetUrl).hostname))
+  } catch {
+    return false
+  }
+}
+
+export function isDevToUrl(targetUrl: string): boolean {
+  try {
+    return DEVTO_HOSTS.has(stripWww(new URL(targetUrl).hostname))
+  } catch {
+    return false
+  }
+}
+
+export function isFarcasterUrl(targetUrl: string): boolean {
+  try {
+    return FARCASTER_HOSTS.has(stripWww(new URL(targetUrl).hostname))
   } catch {
     return false
   }
@@ -244,4 +357,102 @@ function stripQuery(targetUrl: string): string {
   } catch {
     return targetUrl
   }
+}
+
+// ---------------------------------------------------------------------------
+// YouTube — resolves a video URL to the channel handle via YouTube oEmbed.
+// The channel handle is the stable author identity (not the video-specific URL).
+// ---------------------------------------------------------------------------
+export interface YouTubeResult {
+  channelHandle: string // e.g. "mkbhd", from youtube.com/@mkbhd
+  channelUrl: string
+}
+
+export async function resolveYouTubeVideo(videoUrl: string): Promise<YouTubeResult> {
+  const endpoint = `https://www.youtube.com/oembed?url=${encodeURIComponent(videoUrl)}&format=json`
+
+  const res = await fetch(endpoint, {
+    headers: {
+      'User-Agent': 'Mozilla/5.0 (compatible; CiteFlowAI/1.0)',
+    },
+  })
+
+  if (!res.ok) {
+    throw new Error(
+      `Could not resolve that YouTube video (status ${res.status}). Make sure the video is public and the URL is correct.`
+    )
+  }
+
+  const data = await res.json()
+  const authorUrl: string | undefined = data.author_url
+
+  // author_url is normally https://www.youtube.com/@handle
+  const handleMatch = authorUrl?.match(/youtube\.com\/@([a-zA-Z0-9_.-]+)/i)
+  const channelMatch = authorUrl?.match(/youtube\.com\/channel\/([a-zA-Z0-9_-]+)/i)
+
+  const raw = handleMatch?.[1] || channelMatch?.[1]
+  if (!raw) {
+    throw new Error('Could not determine the YouTube channel from that video.')
+  }
+
+  return {
+    channelHandle: raw.toLowerCase(),
+    channelUrl: authorUrl || `https://www.youtube.com/@${raw}`,
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Lens / Hey.xyz — resolves a post URL to the author's Lens handle.
+// Hey.xyz is a Next.js app; author data is in __NEXT_DATA__.
+// ---------------------------------------------------------------------------
+export interface LensPostResult {
+  authorHandle: string
+  canonicalUrl: string
+}
+
+export async function resolveLensPost(postUrl: string): Promise<LensPostResult> {
+  const res = await safeFetch(postUrl)
+  if (!res.ok) {
+    throw new Error(
+      `Could not fetch that Hey.xyz post (status ${res.status}). Make sure it is publicly visible.`
+    )
+  }
+  const html = await res.text()
+
+  let authorHandle = ''
+
+  // Primary: __NEXT_DATA__ contains structured post and profile data
+  const nextDataMatch = html.match(/<script id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/)
+  if (nextDataMatch) {
+    try {
+      const nd = JSON.parse(nextDataMatch[1])
+      const pp = nd?.props?.pageProps
+      // Handle paths vary by Hey.xyz version; try all known locations
+      authorHandle = (
+        pp?.profile?.handle?.localName ||
+        pp?.publication?.by?.handle?.localName ||
+        pp?.post?.by?.handle?.localName ||
+        pp?.profile?.handle ||
+        ''
+      ).toLowerCase()
+    } catch {
+      // fall through to og:url
+    }
+  }
+
+  // Fallback: og:url sometimes contains hey.xyz/u/handle
+  if (!authorHandle) {
+    const ogMatch = html.match(/<meta[^>]+property=["']og:url["'][^>]+content=["']([^"']+)["']/i)
+               || html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:url["']/i)
+    const m = ogMatch?.[1]?.match(/hey\.xyz\/u\/([a-zA-Z0-9_.]+)/i)
+    if (m) authorHandle = m[1].toLowerCase()
+  }
+
+  if (!authorHandle) {
+    throw new Error(
+      'Could not determine the author of that Hey.xyz post. Make sure the post is public and try again.'
+    )
+  }
+
+  return { authorHandle, canonicalUrl: stripQuery(postUrl) }
 }
