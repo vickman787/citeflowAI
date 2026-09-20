@@ -10,96 +10,62 @@ export async function GET(request: NextRequest) {
 
     const supabase = await createClient()
 
-    // Query registered sources (shared knowledge base available to both networks)
-    const { count: registeredSources } = await supabase
-      .from('sources')
-      .select('*', { count: 'exact', head: true })
-      .eq('status', 'extracted')
-
     if (isMainnet) {
       try {
-        let answersServed = 0
-        let settledAmounts: any[] = []
-        let recentPayments: any[] = []
-        let totalPaidCitations = 0
+        const [
+          sessionRes,
+          authRes,
+          payRes,
+          sourceRes
+        ] = await Promise.all([
+          supabase
+            .from('research_sessions')
+            .select('*', { count: 'exact', head: true })
+            .eq('status', 'completed')
+            .gte('created_at', MAINNET_EPOCH),
+          supabase
+            .from('payment_authorizations')
+            .select('amount_usdc')
+            .eq('status', 'settled')
+            .gte('created_at', MAINNET_EPOCH),
+          supabase
+            .from('payment_authorizations')
+            .select(`
+              authorization_id,
+              amount_usdc,
+              created_at,
+              sources (
+                title
+              )
+            `, { count: 'exact' })
+            .eq('status', 'settled')
+            .gte('created_at', MAINNET_EPOCH)
+            .order('created_at', { ascending: false })
+            .limit(5),
+          supabase
+            .from('sources')
+            .select('*', { count: 'exact', head: true })
+            .eq('status', 'extracted')
+            .gte('created_at', MAINNET_EPOCH),
+        ])
 
-        const sessionRes = await supabase
-          .from('research_sessions')
-          .select('*', { count: 'exact', head: true })
-          .eq('status', 'completed')
-          .eq('network', 'arc-mainnet')
-
-        if (!sessionRes.error) {
-          answersServed = sessionRes.count || 0
-          const [authRes, payRes] = await Promise.all([
-            supabase
-              .from('payment_authorizations')
-              .select('amount_usdc')
-              .eq('status', 'settled')
-              .eq('network', 'arc-mainnet'),
-            supabase
-              .from('payment_authorizations')
-              .select(`
-                authorization_id,
-                amount_usdc,
-                created_at,
-                sources (
-                  title
-                )
-              `, { count: 'exact' })
-              .eq('status', 'settled')
-              .eq('network', 'arc-mainnet')
-              .order('created_at', { ascending: false })
-              .limit(5)
-          ])
-          settledAmounts = authRes.data || []
-          recentPayments = payRes.data || []
-          totalPaidCitations = payRes.count || 0
-        } else {
-          // Fallback to MAINNET_EPOCH partitioning
-          const [sess, auth, pay] = await Promise.all([
-            supabase
-              .from('research_sessions')
-              .select('*', { count: 'exact', head: true })
-              .eq('status', 'completed')
-              .gte('created_at', MAINNET_EPOCH),
-            supabase
-              .from('payment_authorizations')
-              .select('amount_usdc')
-              .eq('status', 'settled')
-              .gte('created_at', MAINNET_EPOCH),
-            supabase
-              .from('payment_authorizations')
-              .select(`
-                authorization_id,
-                amount_usdc,
-                created_at,
-                sources (
-                  title
-                )
-              `, { count: 'exact' })
-              .eq('status', 'settled')
-              .gte('created_at', MAINNET_EPOCH)
-              .order('created_at', { ascending: false })
-              .limit(5)
-          ])
-          answersServed = sess.count || 0
-          settledAmounts = auth.data || []
-          recentPayments = pay.data || []
-          totalPaidCitations = pay.count || 0
-        }
+        const answersServed = sessionRes.count || 0
+        const settledAmounts = authRes.data || []
+        const recentPayments = payRes.data || []
+        const totalPaidCitations = payRes.count || 0
+        const registeredSources = sourceRes.count || 0
 
         const totalSettled = (settledAmounts || []).reduce((acc, r) => acc + parseFloat(r.amount_usdc), 0)
         const paidToCreators = totalSettled * CREATOR_SHARE
 
         return NextResponse.json({
           network: 'arc-mainnet',
-          answersServed: answersServed || 0,
-          paidToCreators: paidToCreators || 0,
+          answersServed,
+          paidToCreators,
           avgAnswerCost: answersServed ? totalSettled / answersServed : 0,
-          registeredSources: registeredSources || 0,
-          recentPayments: recentPayments || [],
-          totalPaidCitations: totalPaidCitations || 0,
+          registeredSources,
+          recentPayments,
+          totalPaidCitations,
         })
       } catch (err) {
         return NextResponse.json({
@@ -107,7 +73,7 @@ export async function GET(request: NextRequest) {
           answersServed: 0,
           paidToCreators: 0,
           avgAnswerCost: 0,
-          registeredSources: registeredSources || 0,
+          registeredSources: 0,
           recentPayments: [],
           totalPaidCitations: 0,
         })
@@ -115,87 +81,60 @@ export async function GET(request: NextRequest) {
     }
 
     // Arc Testnet stats
-    let answersServed = 0
-    let settledAmounts: any[] = []
-    let recentPayments: any[] = []
-    let totalPaidCitations = 0
+    const [
+      sessionRes,
+      authRes,
+      payRes,
+      sourceRes
+    ] = await Promise.all([
+      supabase
+        .from('research_sessions')
+        .select('*', { count: 'exact', head: true })
+        .eq('status', 'completed')
+        .lt('created_at', MAINNET_EPOCH),
+      supabase
+        .from('payment_authorizations')
+        .select('amount_usdc')
+        .eq('status', 'settled')
+        .lt('created_at', MAINNET_EPOCH),
+      supabase
+        .from('payment_authorizations')
+        .select(`
+          authorization_id,
+          amount_usdc,
+          created_at,
+          sources (
+            title
+          )
+        `, { count: 'exact' })
+        .eq('status', 'settled')
+        .lt('created_at', MAINNET_EPOCH)
+        .order('created_at', { ascending: false })
+        .limit(5),
+      supabase
+        .from('sources')
+        .select('*', { count: 'exact', head: true })
+        .eq('status', 'extracted')
+        .lt('created_at', MAINNET_EPOCH),
+    ])
 
-    const sessionRes = await supabase
-      .from('research_sessions')
-      .select('*', { count: 'exact', head: true })
-      .eq('status', 'completed')
-      .eq('network', 'arc-testnet')
-
-    if (!sessionRes.error) {
-      answersServed = sessionRes.count || 0
-      const [authRes, payRes] = await Promise.all([
-        supabase
-          .from('payment_authorizations')
-          .select('amount_usdc')
-          .eq('status', 'settled')
-          .eq('network', 'arc-testnet'),
-        supabase
-          .from('payment_authorizations')
-          .select(`
-            authorization_id,
-            amount_usdc,
-            created_at,
-            sources (
-              title
-            )
-          `, { count: 'exact' })
-          .eq('status', 'settled')
-          .eq('network', 'arc-testnet')
-          .order('created_at', { ascending: false })
-          .limit(5)
-      ])
-      settledAmounts = authRes.data || []
-      recentPayments = payRes.data || []
-      totalPaidCitations = payRes.count || 0
-    } else {
-      const [sess, auth, pay] = await Promise.all([
-        supabase
-          .from('research_sessions')
-          .select('*', { count: 'exact', head: true })
-          .eq('status', 'completed')
-          .lt('created_at', MAINNET_EPOCH),
-        supabase
-          .from('payment_authorizations')
-          .select('amount_usdc')
-          .eq('status', 'settled')
-          .lt('created_at', MAINNET_EPOCH),
-        supabase
-          .from('payment_authorizations')
-          .select(`
-            authorization_id,
-            amount_usdc,
-            created_at,
-            sources (
-              title
-            )
-          `, { count: 'exact' })
-          .eq('status', 'settled')
-          .lt('created_at', MAINNET_EPOCH)
-          .order('created_at', { ascending: false })
-          .limit(5)
-      ])
-      answersServed = sess.count || 0
-      settledAmounts = auth.data || []
-      recentPayments = pay.data || []
-      totalPaidCitations = pay.count || 0
-    }
+    const answersServed = sessionRes.count || 0
+    const settledAmounts = authRes.data || []
+    const recentPayments = payRes.data || []
+    const totalPaidCitations = payRes.count || 0
+    const registeredSources = sourceRes.count || 0
 
     const totalSettled = (settledAmounts || []).reduce((acc, r) => acc + parseFloat(r.amount_usdc), 0)
     const paidToCreators = totalSettled * CREATOR_SHARE
 
     return NextResponse.json({
       network: 'arc-testnet',
-      answersServed: answersServed || 0,
-      paidToCreators: paidToCreators || 0,
+      answersServed,
+      paidToCreators,
       avgAnswerCost: answersServed ? totalSettled / answersServed : 0,
-      registeredSources: registeredSources || 0,
-      recentPayments: recentPayments || [],
-      totalPaidCitations: totalPaidCitations || 0,
+      registeredSources,
+      recentPayments,
+      totalPaidCitations,
     })
 
   } catch (error: any) {

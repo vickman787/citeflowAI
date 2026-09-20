@@ -2,6 +2,7 @@ import { createAdminClient } from '@/utils/supabase/admin'
 import { authorizePayment } from '../payments/treasury'
 import { executeGatewayTransfer } from '../payments/circle-api'
 import { embedQuery, cosineSimilarity, parseVector } from './embeddings'
+import { MAINNET_EPOCH } from '@/lib/stats'
 import { z } from 'zod'
 
 const evaluationSchema = z.object({
@@ -141,16 +142,15 @@ export async function runResearchAgent(
   // 1. Fetch available registered sources
   const { data: allSources, error: sourcesError } = await supabase
     .from('sources')
-    .select('id, url, title, price_usdc, creator_id, source_chunks(chunk_text, embedding)')
+    .select('id, url, title, price_usdc, creator_id, created_at, source_chunks(chunk_text, embedding)')
     .eq('status', 'extracted')
 
   if (sourcesError || !allSources) throw new Error('Failed to fetch sources')
 
-  // Shield out testnet sources from Mainnet
-  // Testnet sources were registered under testnet creator '9f35b249-e8be-4ac5-84a6-adeed69b72f0'
+  // Completely isolate testnet sources from Mainnet
   const sources = isMainnet
-    ? allSources.filter(s => s.creator_id !== '9f35b249-e8be-4ac5-84a6-adeed69b72f0')
-    : allSources;
+    ? allSources.filter(s => new Date(s.created_at) >= new Date(MAINNET_EPOCH))
+    : allSources.filter(s => new Date(s.created_at) < new Date(MAINNET_EPOCH));
 
   // Embed the query once for chunk-level retrieval across all sources.
   // If embedding fails (e.g. quota), fall back to document-order chunk selection.
