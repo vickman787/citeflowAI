@@ -131,7 +131,6 @@ export async function runResearchAgent(
 ) {
   let maxBudget = initialBudget;
   let totalSpentOnSources = 0;
-  const platformFee = 0.20; // Ensure we keep $0.20 as platform revenue per prompt
   const isMainnet = network === 'arc-mainnet';
   
   try {
@@ -372,11 +371,11 @@ export async function runResearchAgent(
 
   // --- Backend Refund Mechanism ---
   if (walletAddress) {
-    // Waive the platform fee if no sources were useful (100% full refund)
-    const actualPlatformFee = totalSpentOnSources > 0 ? platformFee : 0;
-    const unspentBudget = initialBudget - totalSpentOnSources - actualPlatformFee;
+    // Researcher only pays for the actual sources cited. Platform take rate is already
+    // factored into each citation payout in the license endpoint (80% creator / 20% platform).
+    const unspentBudget = Math.max(0, initialBudget - totalSpentOnSources);
     
-    if (unspentBudget >= 0.05) {
+    if (unspentBudget >= 0.01) {
       if (onProgress) onProgress(`Calculating budget... Unspent budget is $${unspentBudget.toFixed(2)}. Initiating refund...`)
       try {
         await executeGatewayTransfer(walletAddress, unspentBudget.toFixed(2), network);
@@ -385,8 +384,8 @@ export async function runResearchAgent(
         console.error("Refund failed:", err);
         if (onProgress) onProgress(`Warning: Refund transfer failed (${err.message})`)
       }
-    } else {
-      if (onProgress) onProgress(`Unspent budget is $${unspentBudget.toFixed(2)} (below $0.05 minimum threshold). Retained by Treasury.`)
+    } else if (unspentBudget > 0) {
+      if (onProgress) onProgress(`Unspent budget is $${unspentBudget.toFixed(4)} (below $0.01 minimum threshold). Retained by Treasury.`)
     }
   }
 
