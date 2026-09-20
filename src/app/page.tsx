@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { cookies } from 'next/headers'
 import { createClient } from '@/utils/supabase/server'
-import { getNetworkStats } from '@/lib/stats'
+import { getNetworkStats, MAINNET_EPOCH } from '@/lib/stats'
 import LiveLedger from '@/components/LiveLedger'
 import type { NetworkId } from '@/lib/network'
 
@@ -14,28 +14,54 @@ export default async function LandingPage() {
   let recentPayments: any[] = []
   let totalPaidCitations = 0
 
-  if (!isMainnet) {
-    // Fetch the latest 3 settled payments for initial SSR (Testnet by default)
-    const { data: payments } = await supabase
-      .from('payment_authorizations')
-      .select(`
-        authorization_id,
-        amount_usdc,
-        created_at,
-        sources (
-          title
-        )
-      `)
-      .eq('status', 'settled')
-      .order('created_at', { ascending: false })
-      .limit(3)
-    recentPayments = payments || []
-
-    const { count } = await supabase
-      .from('payment_authorizations')
-      .select('*', { count: 'exact', head: true })
-      .eq('status', 'settled')
-    totalPaidCitations = count || 0
+  if (isMainnet) {
+    const [payRes, countRes] = await Promise.all([
+      supabase
+        .from('payment_authorizations')
+        .select(`
+          authorization_id,
+          amount_usdc,
+          created_at,
+          sources (
+            title
+          )
+        `)
+        .eq('status', 'settled')
+        .gte('created_at', MAINNET_EPOCH)
+        .order('created_at', { ascending: false })
+        .limit(5),
+      supabase
+        .from('payment_authorizations')
+        .select('*', { count: 'exact', head: true })
+        .eq('status', 'settled')
+        .gte('created_at', MAINNET_EPOCH),
+    ])
+    recentPayments = payRes.data || []
+    totalPaidCitations = countRes.count || 0
+  } else {
+    const [payRes, countRes] = await Promise.all([
+      supabase
+        .from('payment_authorizations')
+        .select(`
+          authorization_id,
+          amount_usdc,
+          created_at,
+          sources (
+            title
+          )
+        `)
+        .eq('status', 'settled')
+        .lt('created_at', MAINNET_EPOCH)
+        .order('created_at', { ascending: false })
+        .limit(5),
+      supabase
+        .from('payment_authorizations')
+        .select('*', { count: 'exact', head: true })
+        .eq('status', 'settled')
+        .lt('created_at', MAINNET_EPOCH),
+    ])
+    recentPayments = payRes.data || []
+    totalPaidCitations = countRes.count || 0
   }
 
   // Network stats from the ledger

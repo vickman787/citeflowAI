@@ -70,19 +70,9 @@ export default function LiveLedger({ initialData, children }: LiveLedgerProps) {
     };
   }, [networkId]);
 
-  const isMainnet = network.isMainnet;
   const effectiveData: LedgerStatsData = data && data.networkId === networkId
     ? data.data
-    : isMainnet
-      ? {
-          recentPayments: [],
-          totalPaidCitations: 0,
-          answersServed: 0,
-          paidToCreators: 0,
-          avgAnswerCost: 0,
-          registeredSources: 0,
-        }
-      : initialData;
+    : initialData;
 
   const hasLiveActivity = effectiveData.recentPayments && effectiveData.recentPayments.length > 0;
 
