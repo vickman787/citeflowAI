@@ -36,18 +36,18 @@ export async function generateDynamicCiphertext(rawEntitySecretHex: string, cust
 // Circle requires a tokenId for ERC-20 transfers. We look it up live
 // rather than hardcode it, so any network is supported automatically.
 async function resolveUsdcTokenId(apiKey: string, walletId: string): Promise<string> {
-  const res = await fetch(`https://api.circle.com/v1/w3s/developer/wallets/${walletId}/balances`, {
+  // Use the standard w3s wallets balance endpoint
+  const res = await fetch(`https://api.circle.com/v1/w3s/wallets/${walletId}/balances`, {
     headers: { 'Authorization': `Bearer ${apiKey}` }
   })
   const data = await res.json()
   if (!res.ok) throw new Error(`Failed to fetch treasury wallet balances: ${data.message || JSON.stringify(data)}`)
 
   const balances: any[] = data.data?.tokenBalances ?? []
-  const usdc = balances.find(
-    (b: any) =>
-      b.token?.symbol === 'USDC' ||
-      b.token?.name?.toLowerCase().includes('usd coin')
-  )
+  // Prefer the non-native ERC20 USDC on Arc so native USDC remains available for gas fees.
+  const usdc =
+    balances.find((b: any) => (b.token?.symbol === 'USDC' || b.token?.name?.toLowerCase().includes('usd coin')) && !b.token?.isNative) ||
+    balances.find((b: any) => b.token?.symbol === 'USDC' || b.token?.name?.toLowerCase().includes('usd coin'))
 
   if (!usdc?.token?.id) {
     throw new Error(
