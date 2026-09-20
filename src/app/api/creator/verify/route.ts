@@ -5,7 +5,7 @@ import { generateVerificationCode, verifyIdentity, saveVerifiedIdentity } from '
 import { z } from 'zod'
 
 const verifySchema = z.object({
-  platform: z.enum(['domain', 'x', 'medium', 'substack', 'arc', 'ghost', 'mirror', 'paragraph', 'hashnode', 'devto', 'beehiiv', 'farcaster', 'youtube', 'lens']),
+  platform: z.enum(['domain', 'x', 'medium', 'substack', 'arc', 'ghost', 'mirror', 'paragraph', 'hashnode', 'devto', 'beehiiv', 'farcaster', 'youtube', 'lens', 'github']),
   proofUrl: z.string().url(),
 })
 

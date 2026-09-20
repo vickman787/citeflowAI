@@ -1,6 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { safeFetch } from '@/lib/net/safe-fetch'
-import { resolveByStructure, resolveXPost, isXUrl, resolveArcPost, isArcUrl, resolveYouTubeVideo, isYouTubeUrl, resolveLensPost, isLensUrl, type Platform } from './resolve'
+import { resolveByStructure, resolveXPost, isXUrl, resolveArcPost, isArcUrl, resolveYouTubeVideo, isYouTubeUrl, resolveLensPost, isLensUrl, isGitHubUrl, type Platform } from './resolve'
 
 // Deterministic per-creator code. Not a one-time secret like an OTP — it's
 // a durable proof token (same idea as a domain TXT record), checked live
@@ -352,6 +352,31 @@ async function verifyLens(proofUrl: string, code: string): Promise<VerifyResult>
   return { platform: 'lens', identifier: authorHandle, proofUrl }
 }
 
+// ---------------------------------------------------------------------------
+// GitHub — profile README, public gist, or any public repo page
+// ---------------------------------------------------------------------------
+async function verifyGitHub(proofUrl: string, code: string): Promise<VerifyResult> {
+  let url: URL
+  try { url = new URL(proofUrl) } catch {
+    throw new Error('Enter a valid GitHub URL.')
+  }
+  if (!isGitHubUrl(proofUrl)) {
+    throw new Error('That does not look like a GitHub URL (github.com/yourhandle or gist.github.com/yourhandle/gistid).')
+  }
+  const segments = url.pathname.split('/').filter(Boolean)
+  if (!segments[0]) {
+    throw new Error('Enter your GitHub profile URL (github.com/yourhandle), a Gist URL, or a public repository URL.')
+  }
+  const identifier = segments[0].toLowerCase()
+  const res = await safeFetch(proofUrl)
+  if (!res.ok) throw new Error(`Could not fetch that GitHub page (status ${res.status}). Make sure it is publicly accessible.`)
+  const html = await res.text()
+  if (!html.includes(code)) {
+    throw new Error(`Verification code not found. Add "${code}" to your profile README or a public Gist, then try again.`)
+  }
+  return { platform: 'github', identifier, proofUrl }
+}
+
 export async function verifyIdentity(platform: Platform, proofUrl: string, creatorId: string): Promise<VerifyResult> {
   const code = generateVerificationCode(creatorId)
   switch (platform) {
@@ -369,6 +394,7 @@ export async function verifyIdentity(platform: Platform, proofUrl: string, creat
     case 'farcaster': return verifyFarcaster(proofUrl, code)
     case 'youtube':   return verifyYouTube(proofUrl, code)
     case 'lens':      return verifyLens(proofUrl, code)
+    case 'github':    return verifyGitHub(proofUrl, code)
   }
 }
 

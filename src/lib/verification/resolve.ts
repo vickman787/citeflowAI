@@ -6,7 +6,7 @@ import { safeFetch } from '@/lib/net/safe-fetch'
 // always derived from the canonical source (oEmbed author, URL structure),
 // never trusted blindly from user input.
 
-export type Platform = 'domain' | 'x' | 'medium' | 'substack' | 'arc' | 'ghost' | 'mirror' | 'paragraph' | 'hashnode' | 'devto' | 'beehiiv' | 'farcaster' | 'youtube' | 'lens'
+export type Platform = 'domain' | 'x' | 'medium' | 'substack' | 'arc' | 'ghost' | 'mirror' | 'paragraph' | 'hashnode' | 'devto' | 'beehiiv' | 'farcaster' | 'youtube' | 'lens' | 'github'
 
 export interface ResolvedIdentity {
   platform: Platform
@@ -21,6 +21,7 @@ const DEVTO_HOSTS = new Set(['dev.to', 'www.dev.to'])
 const FARCASTER_HOSTS = new Set(['warpcast.com', 'www.warpcast.com'])
 const YOUTUBE_HOSTS = new Set(['youtube.com', 'www.youtube.com', 'youtu.be'])
 const LENS_HOSTS = new Set(['hey.xyz', 'www.hey.xyz'])
+const GITHUB_HOSTS = new Set(['github.com', 'www.github.com', 'gist.github.com'])
 
 function stripWww(hostname: string): string {
   return hostname.toLowerCase().replace(/^www\./, '')
@@ -120,6 +121,14 @@ export function resolveByStructure(targetUrl: string): ResolvedIdentity | null {
     return null
   }
 
+  // GitHub — github.com/username or gist.github.com/username/gistid
+  if (GITHUB_HOSTS.has(hostname)) {
+    if (segments.length >= 1) {
+      return { platform: 'github', identifier: segments[0].toLowerCase() }
+    }
+    return null
+  }
+
   // Custom-domain blogs, personal sites, etc.
   return { platform: 'domain', identifier: hostname }
 }
@@ -183,6 +192,14 @@ export function isDevToUrl(targetUrl: string): boolean {
 export function isFarcasterUrl(targetUrl: string): boolean {
   try {
     return FARCASTER_HOSTS.has(stripWww(new URL(targetUrl).hostname))
+  } catch {
+    return false
+  }
+}
+
+export function isGitHubUrl(targetUrl: string): boolean {
+  try {
+    return GITHUB_HOSTS.has(new URL(targetUrl).hostname.toLowerCase().replace(/^www\./, ''))
   } catch {
     return false
   }

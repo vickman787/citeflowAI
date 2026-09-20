@@ -6,7 +6,7 @@ import { Check, Copy, ShieldCheck, Loader2 } from 'lucide-react'
 type Platform =
   | 'domain' | 'x' | 'medium' | 'substack' | 'arc'
   | 'ghost' | 'mirror' | 'paragraph' | 'hashnode' | 'devto'
-  | 'beehiiv' | 'farcaster' | 'youtube' | 'lens'
+  | 'beehiiv' | 'farcaster' | 'youtube' | 'lens' | 'github'
 
 interface Identity {
   platform: Platform
@@ -30,6 +30,7 @@ const PLATFORM_LABEL: Record<Platform, string> = {
   farcaster: 'Farcaster',
   youtube:   'YouTube',
   lens:      'Lens (Hey)',
+  github:    'GitHub',
 }
 
 const PLATFORM_INSTRUCTIONS: Record<Platform, (code: string) => string> = {
@@ -61,6 +62,8 @@ const PLATFORM_INSTRUCTIONS: Record<Platform, (code: string) => string> = {
     `Add "${code}" to any public video's description. Then paste the video URL below. The channel handle will be detected automatically via YouTube's API.`,
   lens: (code) =>
     `Publish a Hey.xyz post containing "${code}" in the body. Then paste the post URL (hey.xyz/posts/postId) below. Your Lens handle will be detected automatically.`,
+  github: (code) =>
+    `Add "${code}" to your GitHub profile README (github.com/yourhandle), or create a public Gist containing the code. Then paste the profile or Gist URL below.`,
 }
 
 const PLATFORM_PLACEHOLDER: Record<Platform, string> = {
@@ -78,13 +81,14 @@ const PLATFORM_PLACEHOLDER: Record<Platform, string> = {
   farcaster: 'https://warpcast.com/yourhandle/0xcasthash',
   youtube:   'https://youtube.com/watch?v=...',
   lens:      'https://hey.xyz/posts/postId',
+  github:    'https://github.com/yourhandle or https://gist.github.com/yourhandle/gistid',
 }
 
 // Platforms grouped for visual clarity in the UI
 const PLATFORM_GROUPS: { label: string; platforms: Platform[] }[] = [
   {
     label: 'Web2',
-    platforms: ['domain', 'x', 'medium', 'substack', 'ghost', 'hashnode', 'devto', 'beehiiv', 'youtube'],
+    platforms: ['domain', 'x', 'medium', 'substack', 'ghost', 'hashnode', 'devto', 'beehiiv', 'youtube', 'github'],
   },
   {
     label: 'Web3',
