@@ -11,7 +11,9 @@ CiteFlowAI is payable by humans through the web terminal, and by autonomous agen
 ![Supabase](https://img.shields.io/badge/Supabase-Database-3ECF8E?style=flat&logo=supabase)
 ![Circle](https://img.shields.io/badge/Circle-Web3_Services-2B88D8?style=flat)
 ![x402](https://img.shields.io/badge/x402-Agent_Payments-orange?style=flat)
-![Arc Testnet](https://img.shields.io/badge/Network-Arc_Testnet-success?style=flat)
+![Arc Mainnet](https://img.shields.io/badge/Network-Arc_Mainnet-success?style=flat)
+
+**Live:** [citeflowai.xyz](https://citeflowai.xyz)
 
 ---
 
@@ -21,34 +23,37 @@ CiteFlowAI is payable by humans through the web terminal, and by autonomous agen
 2. **Metered citation payments:** The agent evaluates registered, ownership-verified sources against the query. Every source it actually cites gets paid — the rest cost nothing.
 3. **Platform fee:** A small percentage of each citation payment covers LLM inference and infrastructure.
 4. **Refund of unspent budget:** Whatever wasn't paid out settles back to the researcher's wallet automatically — a simple query with fewer citations costs less, by construction.
-5. **Agent-native payment (x402):** The same research endpoint is callable by any autonomous agent over HTTP: the agent pays via the x402 protocol (settled through Circle Gateway on Arc), the research runs, and unspent budget is refunded the same way.
+5. **Agent-native payment (x402):** The same research endpoint is callable by any autonomous agent over HTTP: the agent pays via the x402 protocol (settled through Circle Gateway on Arc Mainnet), the research runs, and unspent budget is refunded the same way.
 
-## ✨ Core Features
+## Core Features
 
-- **Creator ownership verification (hard gate):** Before anyone can register a source, they must prove control of it — domain, X, Medium, or Substack. Enforced by a database constraint, not application logic, so no one can register someone else's work and intercept their payments.
-- **Invisible Web2-to-Web3 auth (Circle + Supabase):** Email + PIN onboarding via Circle Programmable Wallets, no seed phrase. The backend maps the Circle Wallet identity into a Supabase auth session so research history and payouts persist across devices.
+- **Arc Mainnet settlement:** All USDC micropayments are settled on Arc Mainnet (chain ID 5042) with sub-second finality. Testnet mode remains available for development via the network switcher.
+- **Creator ownership verification (hard gate):** Before anyone can register a source, they must prove control of it — domain, X, Medium, Substack, or Arc House. Enforced at the database level, scoped per network, so no one can register someone else's work and intercept their payments.
+- **Invisible Web2-to-Web3 auth (Circle + Supabase):** Email + PIN onboarding via Circle User-Controlled Wallets, no seed phrase. The backend maps the Circle Wallet identity into a Supabase auth session so research history and payouts persist across devices.
 - **RAG via embeddings:** Registered sources are embedded and retrieved by relevance (`src/lib/ai/embeddings.ts`), not keyword match, so citation and payment are tied to what actually grounded the answer.
+- **Strict grounding gate:** The agent will never synthesize an ungrounded answer. If no registered sources match the query, it refuses to respond and issues an immediate full budget refund.
 - **Multi-model LLM fallback:** Uses OpenAI first when `OPENAI_API_KEY` is configured, then falls back to Gemini and OpenRouter if a provider is unavailable.
 - **Live ledger:** A terminal-themed dashboard showing real-time budgets, citations, and payouts as they settle on-chain.
 - **x402 agent endpoint + agent integrations:** `/api/agent/research` is a spec-compliant, agent-payable HTTP 402 endpoint. Call it with the direct Gateway SDK, a [Circle Agent Wallet](CIRCLE_AGENT_WALLET_X402.md), or the `citeflow_research` tool from the bundled [MCP server](mcp-server/README.md).
 
-## 🛠️ Primitives for builders (open source)
+## Primitives for builders (open source)
 
 - **`src/lib/ai/research-agent.ts`** — the LLM orchestration loop: evaluates source relevance, decides what to cite, and drives the payment ledger.
 - **`src/lib/ai/embeddings.ts`** — embedding generation and similarity retrieval over registered sources.
-- **`src/lib/payments/circle-api.ts`** / **`src/lib/payments/treasury.ts`** — Circle Wallets integration and the pay-per-prompt escrow/refund logic for the human (non-agent) flow.
+- **`src/lib/payments/circle-api.ts`** / **`src/lib/payments/treasury.ts`** — Circle Wallets integration and the pay-per-prompt escrow/refund logic. USDC token ID is resolved live from the treasury wallet balance, supporting both Arc Mainnet and Arc Testnet automatically.
 - **`src/lib/x402/server.ts`** / **`src/lib/x402/next-adapter.ts`** — the x402 resource server (via `@x402/core` + `@circle-fin/x402-batching`) and its Next.js route adapter, backing the agent-payable research endpoint.
-- **`src/lib/verification/`** — domain/social ownership verification used to gate source registration.
+- **`src/lib/verification/`** — domain/social ownership verification used to gate source registration, with full network isolation between mainnet and testnet identities.
+- **`src/context/NetworkContext.tsx`** — dual-network context providing seamless switching between Arc Mainnet and Arc Testnet across the entire application.
 - **`mcp-server/`** — standalone MCP server exposing CiteFlowAI research as a tool any MCP client can call.
 
 ---
 
-## 🚀 Getting Started
+## Getting Started
 
 ### Prerequisites
 - Node.js (v18+)
 - A Supabase project
-- A Circle Web3 Services API key (User-Controlled & Developer-Controlled Wallets)
+- A Circle Web3 Services account (User-Controlled and Developer-Controlled Wallets)
 
 ### Environment Variables
 Rename `.env.example` to `.env.local` and fill in your keys:
@@ -66,18 +71,35 @@ OPENAI_API_KEY=your_openai_key
 OPENAI_RESEARCH_MODEL=gpt-4o-mini
 ANTHROPIC_API_KEY=your_anthropic_key
 
-# Circle Web3 Infrastructure
-CIRCLE_API_KEY=your_circle_key
-NEXT_PUBLIC_CIRCLE_APP_ID=your_circle_app_id
-CIRCLE_WALLET_ID=your_circle_wallet_id
-AGENT_TREASURY_ADDRESS=your_agent_treasury_address
-RAW_ENTITY_SECRET=your_circle_entity_secret
+# Circle Web3 Infrastructure — Arc Testnet (development)
+CIRCLE_API_KEY=your_circle_testnet_key
+NEXT_PUBLIC_CIRCLE_APP_ID=your_circle_testnet_app_id
+CIRCLE_WALLET_ID=your_testnet_treasury_wallet_id
+AGENT_TREASURY_ADDRESS=your_testnet_treasury_address
+RAW_ENTITY_SECRET=your_testnet_entity_secret
+
+# Circle Web3 Infrastructure — Arc Mainnet (production)
+CIRCLE_API_KEY_MAINNET=your_circle_mainnet_key
+NEXT_PUBLIC_CIRCLE_APP_ID_MAINNET=your_circle_mainnet_app_id
+CIRCLE_WALLET_ID_MAINNET=your_mainnet_treasury_wallet_id
+AGENT_TREASURY_ADDRESS_MAINNET=your_mainnet_treasury_address
+RAW_ENTITY_SECRET_MAINNET=your_mainnet_entity_secret
+```
+
+The app runs in testnet mode by default. Mainnet variables are required only for Arc Mainnet operation. Both sets of credentials can coexist — users switch networks via the in-app toggle.
+
+To generate a mainnet treasury wallet and register your entity secret, run:
+
+```bash
+node scripts/setup-mainnet-treasury.mjs
 ```
 
 ### Installation
 
 1. Clone the repository and install dependencies:
 ```bash
+git clone https://github.com/vickman787/citeflowAI.git
+cd citeflowAI
 npm install
 ```
 
@@ -90,5 +112,5 @@ npm run dev
 
 For agent integrations, see the [web documentation](src/app/docs/page.tsx), [Circle Agent Wallet guide](CIRCLE_AGENT_WALLET_X402.md), and [MCP server guide](mcp-server/README.md).
 
-## 📄 License
+## License
 MIT License
