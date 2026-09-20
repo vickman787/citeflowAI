@@ -3,7 +3,7 @@ import { createClient } from '@/utils/supabase/server'
 import { embedDocuments, serializeVector } from '@/lib/ai/embeddings'
 import { safeFetch } from '@/lib/net/safe-fetch'
 import { resolveOwningIdentity } from '@/lib/verification/verify'
-import { isArcUrl, resolveArcPost } from '@/lib/verification/resolve'
+import { isArcUrl, resolveArcPost, isXUrl, resolveXPost } from '@/lib/verification/resolve'
 import crypto from 'crypto'
 
 function extractMetadata(html: string) {
@@ -49,6 +49,10 @@ export async function registerArticle(targetUrl: string, creatorId: string, pric
       const post = await resolveArcPost(normalizedUrl)
       title = post.title
       readableText = post.text
+    } else if (isXUrl(normalizedUrl)) {
+      const post = await resolveXPost(normalizedUrl)
+      title = `Post by @${post.authorHandle} on X`
+      readableText = post.text.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim()
     } else {
       // 3. Try standard fetch first (with SSRF protection)
       const response = await safeFetch(normalizedUrl).catch(() => null)
