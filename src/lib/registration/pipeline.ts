@@ -23,16 +23,17 @@ function extractMetadata(html: string) {
   return { title, readableText }
 }
 
-export async function registerArticle(targetUrl: string, creatorId: string, price: number = 0.00) {
+export async function registerArticle(targetUrl: string, creatorId: string, price: number = 0.00, network: string = 'arc-testnet') {
   const supabase = await createClient()
   
   try {
     // 1. Normalize URL
     const normalizedUrl = new URL(targetUrl).toString()
 
-    // 1b. Ownership gate — only the verified owner of this domain/handle may
-    // register content from it. No source row is created without a match.
-    const ownership = await resolveOwningIdentity(normalizedUrl, creatorId, supabase)
+    // 1b. Ownership gate — only the verified owner of this domain/handle on this
+    // network may register content from it. Testnet and mainnet identities are
+    // fully isolated; mainnet registrations require mainnet verification.
+    const ownership = await resolveOwningIdentity(normalizedUrl, creatorId, supabase, network)
     if (!ownership.allowed) {
       throw new Error(ownership.reason || 'You have not verified ownership of this source.')
     }

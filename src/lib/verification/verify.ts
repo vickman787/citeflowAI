@@ -143,12 +143,12 @@ export async function saveVerifiedIdentity(
   supabase: SupabaseClient,
   creatorId: string,
   result: VerifyResult,
-  code: string
+  code: string,
+  network: string = 'arc-testnet'
 ) {
   // ignoreDuplicates makes this a no-op on conflict instead of an update —
-  // the FIRST creator to verify an identifier permanently owns the row.
-  // A plain upsert would UPDATE on conflict, letting a second verifier
-  // silently steal an already-claimed handle; this closes that race.
+  // the FIRST creator to verify an identifier on this network permanently owns
+  // the row. Testnet and mainnet are fully isolated via the network column.
   const { error } = await supabase
     .from('platform_identities')
     .upsert(
@@ -159,31 +159,35 @@ export async function saveVerifiedIdentity(
         proof_url: result.proofUrl,
         verification_code: code,
         verified_at: new Date().toISOString(),
+        network,
       },
-      { onConflict: 'platform,identifier', ignoreDuplicates: true }
+      { onConflict: 'platform,identifier,network', ignoreDuplicates: true }
     )
 
   if (error) throw new Error(`Failed to save verification: ${error.message}`)
 
   // Confirm we actually own the row now — if it already belonged to someone
-  // else, the insert above was silently skipped and this creator_id won't match.
+  // else on this network, the insert above was silently skipped and this
+  // creator_id won't match.
   const { data: owner } = await supabase
     .from('platform_identities')
     .select('creator_id')
     .eq('platform', result.platform)
     .eq('identifier', result.identifier)
+    .eq('network', network)
     .single()
 
   if (!owner || owner.creator_id !== creatorId) {
-    throw new Error(`${result.identifier} is already verified by another account.`)
+    throw new Error(`${result.identifier} is already verified by another account on this network.`)
   }
 }
 
-// Registration gate: does this creator own the identity behind targetUrl?
+// Registration gate: does this creator own the identity behind targetUrl on this network?
 export async function resolveOwningIdentity(
   targetUrl: string,
   creatorId: string,
-  supabase: SupabaseClient
+  supabase: SupabaseClient,
+  network: string = 'arc-testnet'
 ): Promise<{ allowed: boolean; reason?: string }> {
   let resolved = resolveByStructure(targetUrl)
 
@@ -214,6 +218,7 @@ export async function resolveOwningIdentity(
     .select('creator_id')
     .eq('platform', resolved.platform)
     .eq('identifier', resolved.identifier)
+    .eq('network', network)
     .maybeSingle()
 
   if (data && data.creator_id === creatorId) {
@@ -221,7 +226,7 @@ export async function resolveOwningIdentity(
   }
 
   if (data && data.creator_id !== creatorId) {
-    return { allowed: false, reason: `${resolved.identifier} is registered to a different verified creator.` }
+    return { allowed: false, reason: `${resolved.identifier} is registered to a different verified creator on this network.` }
   }
 
   return {
