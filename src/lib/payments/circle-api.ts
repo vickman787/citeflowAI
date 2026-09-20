@@ -32,6 +32,32 @@ export async function generateDynamicCiphertext(rawEntitySecretHex: string, cust
   return encryptedData.toString('base64')
 }
 
+// Resolve USDC token ID by querying the treasury wallet balance.
+// Circle requires a tokenId for ERC-20 transfers. We look it up live
+// rather than hardcode it, so any network is supported automatically.
+async function resolveUsdcTokenId(apiKey: string, walletId: string): Promise<string> {
+  const res = await fetch(`https://api.circle.com/v1/w3s/developer/wallets/${walletId}/balances`, {
+    headers: { 'Authorization': `Bearer ${apiKey}` }
+  })
+  const data = await res.json()
+  if (!res.ok) throw new Error(`Failed to fetch treasury wallet balances: ${data.message || JSON.stringify(data)}`)
+
+  const balances: any[] = data.data?.tokenBalances ?? []
+  const usdc = balances.find(
+    (b: any) =>
+      b.token?.symbol === 'USDC' ||
+      b.token?.name?.toLowerCase().includes('usd coin')
+  )
+
+  if (!usdc?.token?.id) {
+    throw new Error(
+      'No USDC token found in the treasury wallet. Please fund the treasury wallet with USDC before issuing transfers.'
+    )
+  }
+
+  return usdc.token.id
+}
+
 export async function executeGatewayTransfer(
   destinationAddress: string,
   amountUsdc: string,
@@ -52,6 +78,9 @@ export async function executeGatewayTransfer(
     throw new Error('Circle configuration is incomplete. Ensure API key, Wallet ID, and RAW_ENTITY_SECRET are set.')
   }
 
+  // Resolve the USDC token ID live from the treasury wallet on either network
+  const tokenId = await resolveUsdcTokenId(apiKey, walletId)
+
   // Generate a fresh ciphertext for this specific transaction
   const ciphertext = await generateDynamicCiphertext(rawSecret, apiKey)
 
@@ -60,13 +89,9 @@ export async function executeGatewayTransfer(
     entitySecretCiphertext: ciphertext,
     amounts: [amountUsdc.toString()],
     destinationAddress: destinationAddress,
+    tokenId,
     feeLevel: 'HIGH',
     walletId: walletId,
-  }
-
-  if (!isMainnet) {
-    // Arc Testnet USDC Token ID
-    payload.tokenId = 'ef87c8c3-85de-598a-af50-c5135eecfa74'
   }
 
   const response = await fetch('https://api.circle.com/v1/w3s/developer/transactions/transfer', {
