@@ -3,7 +3,10 @@
 import { useState, useEffect } from 'react'
 import { Check, Copy, ShieldCheck, Loader2 } from 'lucide-react'
 
-type Platform = 'domain' | 'x' | 'medium' | 'substack' | 'arc'
+type Platform =
+  | 'domain' | 'x' | 'medium' | 'substack' | 'arc'
+  | 'ghost' | 'mirror' | 'paragraph' | 'hashnode' | 'devto'
+  | 'beehiiv' | 'farcaster' | 'youtube' | 'lens'
 
 interface Identity {
   platform: Platform
@@ -13,11 +16,20 @@ interface Identity {
 }
 
 const PLATFORM_LABEL: Record<Platform, string> = {
-  domain: 'Website / Domain',
-  x: 'X (Twitter)',
-  medium: 'Medium',
-  substack: 'Substack',
-  arc: 'Arc House',
+  domain:    'Website / Domain',
+  x:         'X (Twitter)',
+  medium:    'Medium',
+  substack:  'Substack',
+  arc:       'Arc House',
+  ghost:     'Ghost',
+  mirror:    'Mirror.xyz',
+  paragraph: 'Paragraph',
+  hashnode:  'Hashnode',
+  devto:     'Dev.to',
+  beehiiv:   'Beehiiv',
+  farcaster: 'Farcaster',
+  youtube:   'YouTube',
+  lens:      'Lens (Hey)',
 }
 
 const PLATFORM_INSTRUCTIONS: Record<Platform, (code: string) => string> = {
@@ -30,8 +42,55 @@ const PLATFORM_INSTRUCTIONS: Record<Platform, (code: string) => string> = {
   substack: (code) =>
     `Publish a post (or add to your About page) containing "${code}" on your Substack. Then paste that URL below.`,
   arc: (code) =>
-    `Publish a post in a public Arc House board containing "${code}" anywhere in it, then paste the link to that post below. Arc House bios aren't public, so a post is the only way to prove authorship. You only need to do this once: it verifies your account, so every post you've written becomes registerable.`,
+    `Publish a post in a public Arc House board containing "${code}" anywhere in it, then paste the link to that post below. Arc House bios are not public, so a post is the only way to prove authorship.`,
+  ghost: (code) =>
+    `Publish a post on your Ghost blog (yourname.ghost.io) containing "${code}" anywhere in the body. Then paste the post URL below.`,
+  mirror: (code) =>
+    `Publish a Mirror.xyz entry containing "${code}" in the body. The URL must include your wallet address (mirror.xyz/0xYourAddress/entry-slug). Paste that URL below.`,
+  paragraph: (code) =>
+    `Publish a Paragraph post containing "${code}" in the body. Paste the post URL (paragraph.xyz/@yourhandle/post-slug) below.`,
+  hashnode: (code) =>
+    `Publish a Hashnode post on your yourhandle.hashnode.dev blog containing "${code}" in the body. Then paste the post URL below.`,
+  devto: (code) =>
+    `Publish a Dev.to post containing "${code}" in the body. Paste the post URL (dev.to/yourhandle/post-slug) below.`,
+  beehiiv: (code) =>
+    `Publish a Beehiiv newsletter post containing "${code}" in the body. Paste the post URL (yourpublication.beehiiv.com/p/post-slug) below.`,
+  farcaster: (code) =>
+    `Cast "${code}" on Warpcast. Then paste the link to that cast (warpcast.com/yourhandle/0xcasthash) below.`,
+  youtube: (code) =>
+    `Add "${code}" to any public video's description. Then paste the video URL below. The channel handle will be detected automatically via YouTube's API.`,
+  lens: (code) =>
+    `Publish a Hey.xyz post containing "${code}" in the body. Then paste the post URL (hey.xyz/posts/postId) below. Your Lens handle will be detected automatically.`,
 }
+
+const PLATFORM_PLACEHOLDER: Record<Platform, string> = {
+  domain:    'https://your-domain.com',
+  x:         'https://x.com/you/status/...',
+  medium:    'https://medium.com/@you/...',
+  substack:  'https://you.substack.com/p/...',
+  arc:       'https://community.arc.io/.../posts/...',
+  ghost:     'https://yourname.ghost.io/post-slug',
+  mirror:    'https://mirror.xyz/0xYourAddress/entry-slug',
+  paragraph: 'https://paragraph.xyz/@yourhandle/post-slug',
+  hashnode:  'https://yourhandle.hashnode.dev/post-slug',
+  devto:     'https://dev.to/yourhandle/post-slug',
+  beehiiv:   'https://yourpublication.beehiiv.com/p/post-slug',
+  farcaster: 'https://warpcast.com/yourhandle/0xcasthash',
+  youtube:   'https://youtube.com/watch?v=...',
+  lens:      'https://hey.xyz/posts/postId',
+}
+
+// Platforms grouped for visual clarity in the UI
+const PLATFORM_GROUPS: { label: string; platforms: Platform[] }[] = [
+  {
+    label: 'Web2',
+    platforms: ['domain', 'x', 'medium', 'substack', 'ghost', 'hashnode', 'devto', 'beehiiv', 'youtube'],
+  },
+  {
+    label: 'Web3',
+    platforms: ['arc', 'mirror', 'paragraph', 'farcaster', 'lens'],
+  },
+]
 
 export default function VerifyIdentityPanel() {
   const [code, setCode] = useState<string | null>(null)
@@ -83,7 +142,7 @@ export default function VerifyIdentityPanel() {
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Verification failed')
 
-      setSuccess(`Verified! You can now register content from ${data.identifier}.`)
+      setSuccess(`Verified. You can now register content from ${data.identifier}.`)
       setProofUrl('')
       loadIdentities()
     } catch (err: any) {
@@ -141,27 +200,34 @@ export default function VerifyIdentityPanel() {
               title={`Verified ${new Date(id.verified_at).toLocaleDateString()}`}
             >
               <ShieldCheck size={12} className="text-[var(--color-signal-green)]" />
-              {PLATFORM_LABEL[id.platform]}: {id.identifier}
+              {PLATFORM_LABEL[id.platform] ?? id.platform}: {id.identifier}
             </span>
           ))}
         </div>
       )}
 
-      {/* Platform tabs */}
-      <div className="flex flex-wrap gap-2 mb-4">
-        {(Object.keys(PLATFORM_LABEL) as Platform[]).map((p) => (
-          <button
-            key={p}
-            type="button"
-            onClick={() => { setPlatform(p); setError(null); setSuccess(null); }}
-            className={`text-xs font-mono px-3 py-1.5 rounded-[2px] border transition-colors ${
-              platform === p
-                ? 'bg-[var(--color-signal-green)] text-[var(--color-paper)] border-[var(--color-signal-green)] font-bold'
-                : 'text-[var(--color-soft-ink)] border-[var(--color-border-strong)] hover:text-[var(--color-ink)]'
-            }`}
-          >
-            {PLATFORM_LABEL[p]}
-          </button>
+      {/* Platform tabs — grouped */}
+      <div className="mb-4 space-y-2">
+        {PLATFORM_GROUPS.map((group) => (
+          <div key={group.label}>
+            <div className="text-[0.6rem] uppercase tracking-[0.16em] text-[var(--color-faint)] font-mono mb-1.5">{group.label}</div>
+            <div className="flex flex-wrap gap-2">
+              {group.platforms.map((p) => (
+                <button
+                  key={p}
+                  type="button"
+                  onClick={() => { setPlatform(p); setError(null); setSuccess(null); }}
+                  className={`text-xs font-mono px-3 py-1.5 rounded-[2px] border transition-colors ${
+                    platform === p
+                      ? 'bg-[var(--color-signal-green)] text-[var(--color-paper)] border-[var(--color-signal-green)] font-bold'
+                      : 'text-[var(--color-soft-ink)] border-[var(--color-border-strong)] hover:text-[var(--color-ink)]'
+                  }`}
+                >
+                  {PLATFORM_LABEL[p]}
+                </button>
+              ))}
+            </div>
+          </div>
         ))}
       </div>
 
@@ -186,13 +252,7 @@ export default function VerifyIdentityPanel() {
           required
           value={proofUrl}
           onChange={(e) => setProofUrl(e.target.value)}
-          placeholder={
-            platform === 'domain' ? 'https://your-domain.com' :
-            platform === 'x' ? 'https://x.com/you/status/...' :
-            platform === 'medium' ? 'https://medium.com/@you/...' :
-            platform === 'arc' ? 'https://community.arc.io/public/forum/boards/.../posts/...' :
-            'https://you.substack.com/p/...'
-          }
+          placeholder={PLATFORM_PLACEHOLDER[platform]}
           className="input-field flex-1 font-mono text-sm"
           disabled={loading}
         />
