@@ -48,7 +48,7 @@ Video Demonstration + Presentation
 ---
 
 Video Link: 
-https://youtu.be/XpMZf3W5E5A?si=38LjgI3ugPIF6QDD
+https://youtu.be/CzlEITXlk6w
 
 ---
 Link to GitHub/Code repository

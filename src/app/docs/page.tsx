@@ -17,8 +17,7 @@ import { useNetwork } from '@/context/NetworkContext';
 
 // Configure Demo Video IDs
 const TESTNET_VIDEO_ID = 'yTErl_OAeyI';
-// Set this when you have uploaded your Arc Mainnet demo video:
-const MAINNET_VIDEO_ID = ''; 
+const MAINNET_VIDEO_ID = 'CzlEITXlk6w'; 
 
 export default function DocsPage() {
   const { network, networkId, setNetwork } = useNetwork();
