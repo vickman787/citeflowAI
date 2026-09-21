@@ -22,16 +22,16 @@ Set your own wallet's private key as an environment variable — **never CiteFlo
 export CITEFLOW_PRIVATE_KEY=0xYOUR_PRIVATE_KEY
 ```
 
-Get testnet USDC and gas for that address from the [Circle Faucet](https://faucet.circle.com) (select Arc Testnet). The server auto-deposits into Gateway the first time it needs to, so no manual deposit step is required.
+Fund that address with USDC on Arc Mainnet (Chain ID 5042). The server auto deposits into Gateway the first time it needs to, so no manual deposit step is required.
 
 ## Configuration
 
 | Variable | Required | Default | Purpose |
 |---|---|---|---|
-| `CITEFLOW_PRIVATE_KEY` | Yes | — | Your agent's EVM private key |
+| `CITEFLOW_PRIVATE_KEY` | Yes | None | Your agent EVM private key |
 | `CITEFLOW_RESEARCH_URL` | No | production endpoint | Override for local testing, e.g. `http://localhost:3000/api/agent/research` |
-| `CITEFLOW_CHAIN` | No | `arcTestnet` | Chain name, per `@circle-fin/x402-batching`'s supported chains |
-| `CITEFLOW_AUTO_DEPOSIT_USDC` | No | `5.00` | Top-up amount when the Gateway balance runs low |
+| `CITEFLOW_CHAIN` | No | `arc` | Chain name, Arc Mainnet (`arc`) per `@circle-fin/x402-batching` |
+| `CITEFLOW_AUTO_DEPOSIT_USDC` | No | `5.00` | Top up amount when the Gateway balance runs low |
 
 ## Adding it to an MCP client
 

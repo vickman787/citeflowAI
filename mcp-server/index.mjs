@@ -18,12 +18,9 @@ import { z } from 'zod'
 
 const PRIVATE_KEY = process.env.CITEFLOW_PRIVATE_KEY
 const RESEARCH_URL = process.env.CITEFLOW_RESEARCH_URL || 'https://citeflowai.xyz/api/agent/research'
-const CHAIN = process.env.CITEFLOW_CHAIN || 'arcTestnet'
+const CHAIN = process.env.CITEFLOW_CHAIN || 'arc'
 const AUTO_DEPOSIT_USDC = process.env.CITEFLOW_AUTO_DEPOSIT_USDC || '5.00'
-// Arc Testnet's default public RPC is aggressively rate-limited and causes
-// deposit/settlement calls to hang or fail under load; this alternate
-// endpoint is what we've verified stays reliable for this flow.
-const RPC_URL = process.env.CITEFLOW_RPC_URL || 'https://rpc.drpc.testnet.arc.network'
+const RPC_URL = process.env.CITEFLOW_RPC_URL || 'https://rpc.mainnet.arc.io'
 const PRICE_PER_CALL_ATOMIC = 1_000_000n // $1.00 in USDC's 6-decimal base units — must match the server's declared price
 
 if (!PRIVATE_KEY) {
