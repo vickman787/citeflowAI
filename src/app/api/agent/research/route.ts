@@ -110,6 +110,19 @@ export async function GET(request: NextRequest) {
       })
     }
 
+    // Automated Post Settlement Disbursement Hook:
+    // When running on Arc Mainnet, automatically initiate a background sweep of the
+    // settled Gateway balance directly to the on chain treasury.
+    if (activeNetwork === 'arc-mainnet') {
+      import('@/lib/payments/gateway_disbursement').then(({ autoDisburseGatewayBalance }) => {
+        autoDisburseGatewayBalance('arc-mainnet').catch(disburseErr => {
+          console.error('Automated Gateway post settlement disbursement error:', disburseErr)
+        })
+      }).catch(importErr => {
+        console.error('Failed to load gateway_disbursement module:', importErr)
+      })
+    }
+
     return NextResponse.json(
       {
         answer: agentResult.answer,
