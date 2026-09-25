@@ -125,7 +125,8 @@ export async function POST(request: NextRequest) {
         user_id: user.id,
         query,
         budget_usdc: maxBudget,
-        status: 'active'
+        status: 'active',
+        network: activeNetwork
       })
       .select('id')
       .single()

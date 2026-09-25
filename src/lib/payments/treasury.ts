@@ -20,7 +20,7 @@ const RECEIVE_WITH_AUTHORIZATION_TYPES = {
   ],
 }
 
-export async function authorizePayment(sessionId: string, sourceId: string, amountUsdc: number, recipientAddress: string) {
+export async function authorizePayment(sessionId: string, sourceId: string, amountUsdc: number, recipientAddress: string, network: string = 'arc-testnet') {
   const supabase = await createAdminClient()
 
   // 1. Enforce Budget Limits
@@ -88,7 +88,8 @@ export async function authorizePayment(sessionId: string, sourceId: string, amou
       source_id: sourceId,
       authorization_id: authorizationId,
       amount_usdc: amountUsdc,
-      status: 'pending'
+      status: 'pending',
+      network
     })
 
   if (insertError) {

@@ -2,7 +2,6 @@ import { createAdminClient } from '@/utils/supabase/admin'
 import { authorizePayment } from '../payments/treasury'
 import { executeGatewayTransfer } from '../payments/circle-api'
 import { embedQuery, cosineSimilarity, parseVector } from './embeddings'
-import { MAINNET_EPOCH } from '@/lib/stats'
 import { z } from 'zod'
 
 const evaluationSchema = z.object({
@@ -142,15 +141,16 @@ export async function runResearchAgent(
   // 1. Fetch available registered sources
   const { data: allSources, error: sourcesError } = await supabase
     .from('sources')
-    .select('id, url, title, price_usdc, creator_id, created_at, source_chunks(chunk_text, embedding)')
+    .select('id, url, title, price_usdc, creator_id, created_at, network, source_chunks(chunk_text, embedding)')
     .eq('status', 'extracted')
 
   if (sourcesError || !allSources) throw new Error('Failed to fetch sources')
 
-  // Completely isolate testnet sources from Mainnet
-  const sources = isMainnet
-    ? allSources.filter(s => new Date(s.created_at) >= new Date(MAINNET_EPOCH))
-    : allSources.filter(s => new Date(s.created_at) < new Date(MAINNET_EPOCH));
+  // Hard network isolation: a source is citable only on the network it was
+  // registered on. Testnet sources never surface on mainnet, and vice versa.
+  // Re-registering a source on mainnet re-tags it as a mainnet source.
+  const activeNetworkId = isMainnet ? 'arc-mainnet' : 'arc-testnet'
+  const sources = allSources.filter(s => (s.network || 'arc-testnet') === activeNetworkId)
 
   // Embed the query once for chunk-level retrieval across all sources.
   // If embedding fails (e.g. quota), fall back to document-order chunk selection.
@@ -336,7 +336,7 @@ export async function runResearchAgent(
 
   for (const source of verifiedSources) {
     try {
-      const { payload } = await authorizePayment(sessionId, source.id, parseFloat(source.price_usdc), 'recipient_placeholder')
+      const { payload } = await authorizePayment(sessionId, source.id, parseFloat(source.price_usdc), 'recipient_placeholder', activeNetworkId)
       
       const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
       const licenseRes = await fetch(`${baseUrl}/api/sources/${source.id}/license`, {

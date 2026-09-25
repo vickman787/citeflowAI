@@ -1,9 +1,8 @@
 import { createClient } from '@/utils/supabase/server'
 
 export const CREATOR_SHARE = 0.8 // 20% platform fee
-// Cutover timestamp separating testnet-era data from mainnet-era data.
-// Configurable via MAINNET_EPOCH so the launch boundary is not a hardcoded date.
-export const MAINNET_EPOCH = process.env.MAINNET_EPOCH || '2026-09-19T00:00:00Z'
+// Network isolation is now enforced by an explicit `network` column on sources,
+// sessions and payment authorizations, not by a timestamp cutover.
 
 export interface NetworkStats {
   answersServed: number
@@ -28,17 +27,17 @@ export async function getNetworkStats(networkId?: string): Promise<NetworkStats>
           .from('research_sessions')
           .select('*', { count: 'exact', head: true })
           .eq('status', 'completed')
-          .gte('created_at', MAINNET_EPOCH),
+          .eq('network', 'arc-mainnet'),
         supabase
           .from('payment_authorizations')
           .select('amount_usdc')
           .eq('status', 'settled')
-          .gte('created_at', MAINNET_EPOCH),
+          .eq('network', 'arc-mainnet'),
         supabase
           .from('sources')
           .select('*', { count: 'exact', head: true })
           .eq('status', 'extracted')
-          .gte('created_at', MAINNET_EPOCH),
+          .eq('network', 'arc-mainnet'),
       ])
 
       const answersServed = sessionRes.count || 0
@@ -70,17 +69,17 @@ export async function getNetworkStats(networkId?: string): Promise<NetworkStats>
       .from('research_sessions')
       .select('*', { count: 'exact', head: true })
       .eq('status', 'completed')
-      .lt('created_at', MAINNET_EPOCH),
+      .eq('network', 'arc-testnet'),
     supabase
       .from('payment_authorizations')
       .select('amount_usdc')
       .eq('status', 'settled')
-      .lt('created_at', MAINNET_EPOCH),
+      .eq('network', 'arc-testnet'),
     supabase
       .from('sources')
       .select('*', { count: 'exact', head: true })
       .eq('status', 'extracted')
-      .lt('created_at', MAINNET_EPOCH),
+      .eq('network', 'arc-testnet'),
   ])
 
   const answersServed = sessionRes.count || 0

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/utils/supabase/server'
-import { CREATOR_SHARE, MAINNET_EPOCH } from '@/lib/stats'
+import { CREATOR_SHARE } from '@/lib/stats'
 
 export async function GET(request: NextRequest) {
   try {
@@ -22,12 +22,12 @@ export async function GET(request: NextRequest) {
             .from('research_sessions')
             .select('*', { count: 'exact', head: true })
             .eq('status', 'completed')
-            .gte('created_at', MAINNET_EPOCH),
+            .eq('network', 'arc-mainnet'),
           supabase
             .from('payment_authorizations')
             .select('amount_usdc')
             .eq('status', 'settled')
-            .gte('created_at', MAINNET_EPOCH),
+            .eq('network', 'arc-mainnet'),
           supabase
             .from('payment_authorizations')
             .select(`
@@ -39,14 +39,14 @@ export async function GET(request: NextRequest) {
               )
             `, { count: 'exact' })
             .eq('status', 'settled')
-            .gte('created_at', MAINNET_EPOCH)
+            .eq('network', 'arc-mainnet')
             .order('created_at', { ascending: false })
             .limit(5),
           supabase
             .from('sources')
             .select('*', { count: 'exact', head: true })
             .eq('status', 'extracted')
-            .gte('created_at', MAINNET_EPOCH),
+            .eq('network', 'arc-mainnet'),
         ])
 
         const answersServed = sessionRes.count || 0
@@ -91,12 +91,12 @@ export async function GET(request: NextRequest) {
         .from('research_sessions')
         .select('*', { count: 'exact', head: true })
         .eq('status', 'completed')
-        .lt('created_at', MAINNET_EPOCH),
+        .eq('network', 'arc-testnet'),
       supabase
         .from('payment_authorizations')
         .select('amount_usdc')
         .eq('status', 'settled')
-        .lt('created_at', MAINNET_EPOCH),
+        .eq('network', 'arc-testnet'),
       supabase
         .from('payment_authorizations')
         .select(`
@@ -108,14 +108,14 @@ export async function GET(request: NextRequest) {
           )
         `, { count: 'exact' })
         .eq('status', 'settled')
-        .lt('created_at', MAINNET_EPOCH)
+        .eq('network', 'arc-testnet')
         .order('created_at', { ascending: false })
         .limit(5),
       supabase
         .from('sources')
         .select('*', { count: 'exact', head: true })
         .eq('status', 'extracted')
-        .lt('created_at', MAINNET_EPOCH),
+        .eq('network', 'arc-testnet'),
     ])
 
     const answersServed = sessionRes.count || 0

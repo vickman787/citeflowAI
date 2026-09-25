@@ -140,7 +140,7 @@ export async function GET(request: NextRequest) {
 
     const { data: session, error: sessionError } = await supabase
       .from('research_sessions')
-      .insert({ user_id: null, query, budget_usdc: budget, status: 'active' })
+      .insert({ user_id: null, query, budget_usdc: budget, status: 'active', network: activeNetwork })
       .select('id')
       .single()
 
@@ -279,7 +279,7 @@ export async function GET(request: NextRequest) {
   const supabase = createAdminClient()
   const { data: session, error: sessionError } = await supabase
     .from('research_sessions')
-    .insert({ user_id: null, query, budget_usdc: budget, status: 'active' })
+    .insert({ user_id: null, query, budget_usdc: budget, status: 'active', network: activeNetwork })
     .select('id')
     .single()
 

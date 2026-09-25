@@ -2,7 +2,7 @@ import { createClient } from '@/utils/supabase/server'
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
-import { MAINNET_EPOCH } from '@/lib/stats'
+
 import CopyButton from '@/components/CopyButton'
 import VerifyIdentityPanel from '@/components/VerifyIdentityPanel'
 import DashboardNetworkBadge from '@/components/DashboardNetworkBadge'
@@ -105,6 +105,7 @@ export default async function DashboardPage() {
   const cookieStore = await cookies()
   const network = cookieStore.get('citeflow_network')?.value || 'arc-testnet'
   const isMainnet = network === 'arc-mainnet'
+  const activeNetworkId = isMainnet ? 'arc-mainnet' : 'arc-testnet'
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let sources: any[] = []
@@ -114,26 +115,20 @@ export default async function DashboardPage() {
     const { data } = await supabase
       .from('sources')
       .select(`
-        id, url, title, price_usdc, status, created_at,
-        payment_authorizations(amount_usdc, status, created_at)
+        id, url, title, price_usdc, status, created_at, network,
+        payment_authorizations(amount_usdc, status, created_at, network)
       `)
       .eq('creator_id', creator.id)
       
     if (data) {
-      // Isolate sources by active network
-      const networkData = data.filter(s =>
-        isMainnet
-          ? new Date(s.created_at) >= new Date(MAINNET_EPOCH)
-          : new Date(s.created_at) < new Date(MAINNET_EPOCH)
-      )
+      // Isolate sources by active network (tagged at registration)
+      const networkData = data.filter(s => (s.network || 'arc-testnet') === activeNetworkId)
 
       // Calculate earnings across sources on this network
       networkData.forEach(s => {
         const settledAuths = s.payment_authorizations?.filter((pa: any) => {
           if (pa.status !== 'settled') return false
-          return isMainnet
-            ? new Date(pa.created_at) >= new Date(MAINNET_EPOCH)
-            : new Date(pa.created_at) < new Date(MAINNET_EPOCH)
+          return (pa.network || 'arc-testnet') === activeNetworkId
         }) || []
         settledAuths.forEach((pa: any) => {
           totalEarnings += parseFloat(pa.amount_usdc) * 0.80
@@ -145,9 +140,7 @@ export default async function DashboardPage() {
       sources.forEach(s => {
         const settledAuths = s.payment_authorizations?.filter((pa: any) => {
           if (pa.status !== 'settled') return false
-          return isMainnet
-            ? new Date(pa.created_at) >= new Date(MAINNET_EPOCH)
-            : new Date(pa.created_at) < new Date(MAINNET_EPOCH)
+          return (pa.network || 'arc-testnet') === activeNetworkId
         }) || []
         s.payment_count = settledAuths.length
       })

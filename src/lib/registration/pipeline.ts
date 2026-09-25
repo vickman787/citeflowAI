@@ -116,7 +116,8 @@ export async function registerArticle(targetUrl: string, creatorId: string, pric
            status: 'extracted',
            title,
            content_hash: contentHash,
-           price_usdc: price
+           price_usdc: price,
+           network
          })
          .eq('id', existing.id)
          .select('id')
@@ -138,7 +139,8 @@ export async function registerArticle(targetUrl: string, creatorId: string, pric
            content_hash: contentHash,
            price_usdc: price,
            creator_id: creatorId,
-           status: 'extracted'
+           status: 'extracted',
+           network
          })
          .select('id')
          .single()
