@@ -17,8 +17,65 @@ const coreServer = new x402ResourceServer([testnetFacilitator, mainnetFacilitato
 coreServer.register('eip155:5042002', new GatewayEvmScheme())
 coreServer.register('eip155:5042', new GatewayEvmScheme())
 
-const AGENT_TREASURY_ADDRESS = process.env.AGENT_TREASURY_ADDRESS || '0x4465bfaa087d1cc8ed8b8bdb49fd28844d553e97'
-const AGENT_TREASURY_ADDRESS_MAINNET = process.env.AGENT_TREASURY_ADDRESS_MAINNET || AGENT_TREASURY_ADDRESS
+export const AGENT_TREASURY_ADDRESS = process.env.AGENT_TREASURY_ADDRESS || '0x4465bfaa087d1cc8ed8b8bdb49fd28844d553e97'
+export const AGENT_TREASURY_ADDRESS_MAINNET = process.env.AGENT_TREASURY_ADDRESS_MAINNET || '0x30d20839e4279358dd0c908cb7d96424e683aba3'
+
+export const RESEARCH_PAYMENT_ACCEPTS = [
+  // Arc Mainnet: Standard x402 Exact EIP-3009 (for OKX Agent Wallet and universal x402 agents)
+  {
+    scheme: 'exact',
+    network: 'eip155:5042',
+    amount: '1000000',
+    asset: '0x3600000000000000000000000000000000000000',
+    payTo: AGENT_TREASURY_ADDRESS_MAINNET,
+    maxTimeoutSeconds: 2592000,
+    extra: {
+      name: 'USDC',
+      version: '2',
+    },
+  },
+  // Arc Mainnet: Circle Gateway Batched (for Circle Agent Wallet)
+  {
+    scheme: 'exact',
+    network: 'eip155:5042',
+    amount: '1000000',
+    asset: '0x3600000000000000000000000000000000000000',
+    payTo: AGENT_TREASURY_ADDRESS_MAINNET,
+    maxTimeoutSeconds: 2592000,
+    extra: {
+      name: 'GatewayWalletBatched',
+      version: '1',
+      verifyingContract: '0x77777777dcc4d5a8b6e418fd04d8997ef11000ee',
+    },
+  },
+  // Arc Testnet: Standard x402 Exact EIP-3009
+  {
+    scheme: 'exact',
+    network: 'eip155:5042002',
+    amount: '1000000',
+    asset: '0x036CbD53842c5426634e7929541eC2318f3dCF7e',
+    payTo: AGENT_TREASURY_ADDRESS,
+    maxTimeoutSeconds: 2592000,
+    extra: {
+      name: 'USDC',
+      version: '2',
+    },
+  },
+  // Arc Testnet: Circle Gateway Batched
+  {
+    scheme: 'exact',
+    network: 'eip155:5042002',
+    amount: '1000000',
+    asset: '0x036CbD53842c5426634e7929541eC2318f3dCF7e',
+    payTo: AGENT_TREASURY_ADDRESS,
+    maxTimeoutSeconds: 2592000,
+    extra: {
+      name: 'GatewayWalletBatched',
+      version: '1',
+      verifyingContract: '0x77777777dcc4d5a8b6e418fd04d8997ef11000ee',
+    },
+  },
+]
 
 const routes: RoutesConfig = {
   'GET /api/treasury/fund': {

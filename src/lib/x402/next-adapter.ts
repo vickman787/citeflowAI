@@ -11,7 +11,15 @@ export class NextHTTPAdapter implements HTTPAdapter {
   }
 
   getHeader(name: string): string | undefined {
-    return this.request.headers.get(name) || undefined
+    const val = this.request.headers.get(name)
+    if (val) return val
+    if (name.toLowerCase() === 'payment-signature') {
+      const xPay = this.request.headers.get('x-payment')
+      if (xPay) return xPay
+      const auth = this.request.headers.get('authorization')
+      if (auth) return auth.replace(/^Bearer\s+/i, '')
+    }
+    return undefined
   }
 
   getMethod(): string {
@@ -66,7 +74,9 @@ export async function buildRequestContext(request: NextRequest, path: string) {
   }
 
   const adapter = new NextHTTPAdapter(request, parsedBody)
-  const paymentHeader = request.headers.get('payment-signature') || request.headers.get('x-payment') || undefined
+  const rawAuth = request.headers.get('authorization')
+  const authVal = rawAuth ? rawAuth.replace(/^Bearer\s+/i, '') : undefined
+  const paymentHeader = request.headers.get('payment-signature') || request.headers.get('x-payment') || authVal || undefined
 
   return {
     adapter,

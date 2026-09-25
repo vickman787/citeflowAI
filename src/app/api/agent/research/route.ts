@@ -1,38 +1,185 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getX402Server } from '@/lib/x402/server'
+import {
+  getX402Server,
+  RESEARCH_PAYMENT_ACCEPTS,
+  AGENT_TREASURY_ADDRESS,
+  AGENT_TREASURY_ADDRESS_MAINNET,
+} from '@/lib/x402/server'
 import { buildRequestContext } from '@/lib/x402/next-adapter'
 import { createAdminClient } from '@/utils/supabase/admin'
 import { runResearchAgent } from '@/lib/ai/research-agent'
+import { verifyEip3009Payment, settleEip3009Payment } from '@/lib/x402/eip3009'
 
-// Agent-payable research endpoint. Any x402 client — human or autonomous —
-// can pay $1.00 in USDC via a gasless signed authorization (no Circle
-// wallet UI, no PIN, no browser session) and get a grounded, cited answer,
-// with any unspent portion refunded to the paying wallet.
-//
-// This is deliberately separate from /api/research, which is untouched and
-// keeps serving the human flow (Circle wallet-UI PIN payment + Supabase
-// session). The two payment rails don't share funds or identity:
-//
-//   - /api/research pays into the treasury via a Circle Developer-Controlled
-//     Wallet transfer, verified by inspecting that transaction directly.
-//   - This route pays via Circle Gateway's batched x402 settlement, which
-//     lands on-chain later (in a periodic batch), not immediately.
-//
-// Both refund unspent budget through the same executeGatewayTransfer
-// mechanism (Circle Developer-Controlled Wallets), which sends from the
-// treasury's own on-chain balance — a separate pool from whatever this
-// specific x402 payment settles into. On testnet that pool has ample slack
-// from prior payments, so refunds succeed in practice; this is a real
-// architectural gap worth closing before relying on this in production,
-// since it isn't guaranteed the treasury will always have settled balance
-// on hand the instant an agent-paid session needs to refund.
+function parseRawPaymentHeader(rawHeader: string | undefined | null): any | null {
+  if (!rawHeader) return null
+  try {
+    return JSON.parse(rawHeader)
+  } catch {
+    try {
+      const decoded = Buffer.from(rawHeader, 'base64').toString('utf-8')
+      return JSON.parse(decoded)
+    } catch {
+      return null
+    }
+  }
+}
+
+// Agent payable research endpoint supporting both OKX Agent Wallet (standard x402 exact EIP 3009)
+// and Circle Agent Wallet (Circle Gateway batched x402) concurrently.
 export async function GET(request: NextRequest) {
+  const rawAuth = request.headers.get('authorization')
+  const authVal = rawAuth ? rawAuth.replace(/^Bearer\s+/i, '') : undefined
+  const paymentHeader =
+    request.headers.get('payment-signature') ||
+    request.headers.get('x-payment') ||
+    authVal ||
+    undefined
+
+  const parsedPayment = parseRawPaymentHeader(paymentHeader)
+
+  // 1. Initial 402 challenge when no payment payload is provided
+  if (!parsedPayment) {
+    const challengeBody = {
+      x402Version: 2,
+      error: 'Payment required',
+      resource: {
+        url: '/api/agent/research',
+        description: 'CiteFlow AI grounded research answer, agent-payable via x402',
+        mimeType: 'application/json',
+      },
+      accepts: RESEARCH_PAYMENT_ACCEPTS,
+    }
+    const challengeBase64 = Buffer.from(JSON.stringify(challengeBody)).toString('base64')
+    return NextResponse.json(challengeBody, {
+      status: 402,
+      headers: {
+        'Content-Type': 'application/json',
+        'PAYMENT-REQUIRED': challengeBase64,
+        'X-PAYMENT-REQUIRED': challengeBase64,
+      },
+    })
+  }
+
+  // 2. Identify payment rail
+  const isGatewayBatched =
+    parsedPayment?.accepted?.extra?.name === 'GatewayWalletBatched' ||
+    parsedPayment?.accepted?.extra?.verifyingContract === '0x77777777dcc4d5a8b6e418fd04d8997ef11000ee'
+
+  // Standard x402 Exact EIP 3009 Rail (OKX Agent Wallet, Goat SDK, universal x402 agents)
+  if (!isGatewayBatched) {
+    const query = request.nextUrl.searchParams.get('q')
+    if (!query || query.trim().length < 5) {
+      return NextResponse.json(
+        { error: 'Missing or too short "q" query parameter (min 5 characters)' },
+        { status: 400 }
+      )
+    }
+
+    const acceptedNetwork = parsedPayment.accepted?.network || parsedPayment.network || 'eip155:5042'
+    const isMainnet =
+      acceptedNetwork === 'eip155:5042' ||
+      request.headers.get('x-network') === 'arc-mainnet' ||
+      request.nextUrl.searchParams.get('network') === 'arc-mainnet'
+    const activeNetwork = isMainnet ? 'arc-mainnet' : 'arc-testnet'
+    const expectedPayTo = isMainnet ? AGENT_TREASURY_ADDRESS_MAINNET : AGENT_TREASURY_ADDRESS
+
+    const authObj = parsedPayment.payload?.authorization || parsedPayment.payload
+    const rawSig = parsedPayment.payload?.signature || parsedPayment.signature
+    const eipPayload = { authorization: authObj, signature: rawSig }
+
+    const verification = await verifyEip3009Payment(
+      eipPayload,
+      acceptedNetwork,
+      expectedPayTo,
+      '1000000'
+    )
+
+    if (!verification.valid) {
+      return NextResponse.json(
+        { error: 'Payment verification failed', details: verification.error },
+        { status: 402 }
+      )
+    }
+
+    const payerAddress = verification.payer
+    const budget = 1.0
+
+    const supabase = createAdminClient()
+    const { data: session, error: sessionError } = await supabase
+      .from('research_sessions')
+      .insert({ user_id: null, query, budget_usdc: budget, status: 'active' })
+      .select('id')
+      .single()
+
+    if (sessionError || !session) {
+      console.error('Failed to create research session:', sessionError)
+      return NextResponse.json(
+        { error: 'Failed to create research session', details: sessionError?.message },
+        { status: 500 }
+      )
+    }
+
+    try {
+      const agentResult = await runResearchAgent(
+        session.id,
+        query,
+        budget,
+        payerAddress,
+        undefined,
+        undefined,
+        activeNetwork
+      )
+
+      await supabase
+        .from('research_sessions')
+        .update({ status: 'completed', result: agentResult })
+        .eq('id', session.id)
+
+      // On chain settlement on Arc Mainnet
+      const settlement = await settleEip3009Payment(eipPayload, acceptedNetwork)
+
+      const paymentResponseData = {
+        success: settlement.success,
+        transaction: settlement.txHash || 'settled',
+        network: acceptedNetwork,
+        amount: '1000000',
+        payer: payerAddress,
+      }
+      const paymentResponseBase64 = Buffer.from(JSON.stringify(paymentResponseData)).toString('base64')
+
+      return NextResponse.json(
+        {
+          answer: agentResult.answer,
+          citationsUsed: agentResult.citationsUsed,
+          purchasedSources: agentResult.purchasedSources,
+          transaction: settlement.txHash,
+        },
+        {
+          headers: {
+            'PAYMENT-RESPONSE': paymentResponseBase64,
+            'X-PAYMENT-RESPONSE': paymentResponseBase64,
+          },
+        }
+      )
+    } catch (err: any) {
+      try {
+        await supabase.from('research_sessions').update({ status: 'failed' }).eq('id', session.id)
+      } catch {}
+      return NextResponse.json({ error: err.message || 'Agent execution failed' }, { status: 500 })
+    }
+  }
+
+  // Circle Gateway Batched Rail (Circle Agent Wallet)
   const server = await getX402Server()
   const context = await buildRequestContext(request, '/api/agent/research')
   const result = await server.processHTTPRequest(context)
 
   if (result.type === 'payment-error') {
-    return NextResponse.json(result.response.body ?? {}, {
+    const body: any = result.response.body ?? {}
+    if (result.response.status === 402 && (!body.accepts || body.accepts.length < 2)) {
+      body.accepts = RESEARCH_PAYMENT_ACCEPTS
+    }
+    return NextResponse.json(body, {
       status: result.response.status,
       headers: result.response.headers,
     })
@@ -45,19 +192,18 @@ export async function GET(request: NextRequest) {
   const query = request.nextUrl.searchParams.get('q')
   if (!query || query.trim().length < 5) {
     return NextResponse.json(
-      { error: 'Missing or too-short "q" query parameter (min 5 characters)' },
+      { error: 'Missing or too short "q" query parameter (min 5 characters)' },
       { status: 400 }
     )
   }
 
-  const budget = parseFloat(result.paymentRequirements.amount) / 1_000_000 // base units -> USDC decimal
+  const budget = parseFloat(result.paymentRequirements.amount) / 1_000_000
 
-  // The verified EIP-3009 authorization's "from" field is the paying wallet —
-  // used as the refund destination for unspent budget, same as the human flow.
   const authorization = result.paymentPayload.payload?.authorization as { from?: string } | undefined
   const payerAddress = authorization?.from
 
-  const isMainnet = result.paymentRequirements.network === 'eip155:5042' ||
+  const isMainnet =
+    result.paymentRequirements.network === 'eip155:5042' ||
     request.headers.get('x-network') === 'arc-mainnet' ||
     request.nextUrl.searchParams.get('network') === 'arc-mainnet'
   const activeNetwork = isMainnet ? 'arc-mainnet' : 'arc-testnet'
@@ -71,11 +217,13 @@ export async function GET(request: NextRequest) {
 
   if (sessionError || !session) {
     console.error('Failed to create research session:', sessionError)
-    return NextResponse.json({ error: 'Failed to create research session', details: sessionError?.message }, { status: 500 })
+    return NextResponse.json(
+      { error: 'Failed to create research session', details: sessionError?.message },
+      { status: 500 }
+    )
   }
 
   try {
-
     const agentResult = await runResearchAgent(
       session.id,
       query,
@@ -91,9 +239,6 @@ export async function GET(request: NextRequest) {
       .update({ status: 'completed', result: agentResult })
       .eq('id', session.id)
 
-    // Serve first, settle after — matches the x402/Gateway model where the
-    // buyer's funds are already locked once verified; settlement finalizes
-    // the batch but doesn't gate serving the resource.
     const settlement = await server.processSettlement(
       result.paymentPayload,
       result.paymentRequirements,
@@ -110,17 +255,16 @@ export async function GET(request: NextRequest) {
       })
     }
 
-    // Automated Post Settlement Disbursement Hook:
-    // When running on Arc Mainnet, automatically initiate a background sweep of the
-    // settled Gateway balance directly to the on chain treasury.
     if (activeNetwork === 'arc-mainnet') {
-      import('@/lib/payments/gateway_disbursement').then(({ autoDisburseGatewayBalance }) => {
-        autoDisburseGatewayBalance('arc-mainnet').catch(disburseErr => {
-          console.error('Automated Gateway post settlement disbursement error:', disburseErr)
+      import('@/lib/payments/gateway_disbursement')
+        .then(({ autoDisburseGatewayBalance }) => {
+          autoDisburseGatewayBalance('arc-mainnet').catch(disburseErr => {
+            console.error('Automated Gateway post settlement disbursement error:', disburseErr)
+          })
         })
-      }).catch(importErr => {
-        console.error('Failed to load gateway_disbursement module:', importErr)
-      })
+        .catch(importErr => {
+          console.error('Failed to load gateway_disbursement module:', importErr)
+        })
     }
 
     return NextResponse.json(
@@ -135,11 +279,7 @@ export async function GET(request: NextRequest) {
   } catch (err: any) {
     try {
       await supabase.from('research_sessions').update({ status: 'failed' }).eq('id', session.id)
-    } catch {
-      // Best-effort bookkeeping only — the original error below is what matters.
-    }
-    // Do not settle on failure — the verified authorization is simply never
-    // submitted, so no funds move. The buyer isn't charged for a failed run.
+    } catch {}
     return NextResponse.json({ error: err.message || 'Agent execution failed' }, { status: 500 })
   }
 }
