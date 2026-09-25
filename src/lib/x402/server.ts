@@ -9,6 +9,10 @@ const testnetFacilitator = new BatchFacilitatorClient({
 
 const mainnetFacilitator = new BatchFacilitatorClient({
   url: 'https://gateway-api.circle.com',
+  // Arc mainnet Gateway requires the X-ARC-PRIVATE-MAINNET-ENABLED header on
+  // verify/settle/supported calls. Without it, batched (Circle Agent Wallet)
+  // payments against Arc mainnet cannot complete.
+  arcPrivateMainnet: true,
 }) as unknown as FacilitatorClient
 
 const coreServer = new x402ResourceServer([testnetFacilitator, mainnetFacilitator])
