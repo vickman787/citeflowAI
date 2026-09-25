@@ -81,35 +81,49 @@ export async function executeGatewayTransfer(
   // Resolve the USDC token ID live from the treasury wallet on either network
   const tokenId = await resolveUsdcTokenId(apiKey, walletId)
 
-  // Generate a fresh ciphertext for this specific transaction
-  const ciphertext = await generateDynamicCiphertext(rawSecret, apiKey)
+  let lastError: any = null
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      const ciphertext = await generateDynamicCiphertext(rawSecret, apiKey)
+      const payload: any = {
+        idempotencyKey: crypto.randomUUID(),
+        entitySecretCiphertext: ciphertext,
+        amounts: [amountUsdc.toString()],
+        destinationAddress: destinationAddress,
+        tokenId,
+        feeLevel: 'MEDIUM',
+        walletId: walletId,
+      }
 
-  const payload: any = {
-    idempotencyKey: crypto.randomUUID(),
-    entitySecretCiphertext: ciphertext,
-    amounts: [amountUsdc.toString()],
-    destinationAddress: destinationAddress,
-    tokenId,
-    feeLevel: 'HIGH',
-    walletId: walletId,
+      const response = await fetch('https://api.circle.com/v1/w3s/developer/transactions/transfer', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(payload)
+      })
+
+      const result = await response.json()
+      if (!response.ok) {
+        lastError = result
+        if (attempt < 3 && JSON.stringify(result).toLowerCase().includes('insufficient')) {
+          await new Promise(resolve => setTimeout(resolve, 2000))
+          continue
+        }
+        throw new Error(JSON.stringify(result) || 'Circle API transaction failed')
+      }
+
+      return result.data.id
+    } catch (err: any) {
+      lastError = err
+      if (attempt < 3 && err.message?.toLowerCase().includes('insufficient')) {
+        await new Promise(resolve => setTimeout(resolve, 2000))
+        continue
+      }
+      throw err
+    }
   }
 
-  const response = await fetch('https://api.circle.com/v1/w3s/developer/transactions/transfer', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${apiKey}`,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify(payload)
-  })
-
-  const result = await response.json()
-  
-  if (!response.ok) {
-    console.error('CIRCLE API ERROR RESPONSE:', JSON.stringify(result, null, 2))
-    throw new Error(JSON.stringify(result) || 'Circle API transaction failed')
-  }
-
-  // The real settlement ID (transaction ID in Circle's system)
-  return result.data.id
+  throw lastError || new Error('Circle API transfer failed after retries')
 }
