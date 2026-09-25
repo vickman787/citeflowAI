@@ -95,7 +95,7 @@ export async function registerArticle(targetUrl: string, creatorId: string, pric
     // 5. Database Insertion
     const { data: existing } = await supabase
       .from('sources')
-      .select('id, creator_id, status')
+      .select('id, creator_id, status, network')
       .eq('url', normalizedUrl)
       .single()
 
@@ -105,11 +105,17 @@ export async function registerArticle(targetUrl: string, creatorId: string, pric
        if (existing.creator_id !== creatorId) {
           throw new Error('This article is already registered by another creator.')
        }
-       if (existing.status !== 'deleted') {
+
+       const existingNetwork = existing.network || 'arc-testnet'
+       const isReactivation = existing.status === 'deleted'
+       const isNetworkRetag = existingNetwork !== network
+
+       if (!isReactivation && !isNetworkRetag) {
           throw new Error('Article already registered (Duplicate)')
        }
 
-       // Reactivate it!
+       // Reactivate a deleted source, or re-tag a source that was registered on
+       // the other network so the same work becomes citable on the active one.
        const { data: updated, error } = await supabase
          .from('sources')
          .update({
