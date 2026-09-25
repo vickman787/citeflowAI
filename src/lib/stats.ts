@@ -1,7 +1,9 @@
 import { createClient } from '@/utils/supabase/server'
 
 export const CREATOR_SHARE = 0.8 // 20% platform fee
-export const MAINNET_EPOCH = '2026-09-19T00:00:00Z'
+// Cutover timestamp separating testnet-era data from mainnet-era data.
+// Configurable via MAINNET_EPOCH so the launch boundary is not a hardcoded date.
+export const MAINNET_EPOCH = process.env.MAINNET_EPOCH || '2026-09-19T00:00:00Z'
 
 export interface NetworkStats {
   answersServed: number

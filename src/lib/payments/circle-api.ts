@@ -1,5 +1,6 @@
 import crypto from 'crypto'
 import dns from 'dns'
+import { getCircleCredentials } from '@/lib/circle-credentials'
 
 dns.setDefaultResultOrder('ipv4first')
 
@@ -64,19 +65,9 @@ export async function executeGatewayTransfer(
   network?: string
 ): Promise<string> {
   const isMainnet = network === 'arc-mainnet'
-  const apiKey = isMainnet
-    ? (process.env.CIRCLE_API_KEY_MAINNET || process.env.CIRCLE_API_KEY)
-    : process.env.CIRCLE_API_KEY
-  const walletId = isMainnet
-    ? (process.env.CIRCLE_WALLET_ID_MAINNET || process.env.CIRCLE_WALLET_ID)
-    : process.env.CIRCLE_WALLET_ID
-  const rawSecret = isMainnet
-    ? (process.env.RAW_ENTITY_SECRET_MAINNET || process.env.RAW_ENTITY_SECRET)
-    : process.env.RAW_ENTITY_SECRET
-
-  if (!apiKey || !walletId || !rawSecret) {
-    throw new Error('Circle configuration is incomplete. Ensure API key, Wallet ID, and RAW_ENTITY_SECRET are set.')
-  }
+  const { apiKey, walletId, rawEntitySecret: rawSecret } = getCircleCredentials(
+    isMainnet ? 'arc-mainnet' : 'arc-testnet'
+  )
 
   // Resolve the USDC token ID live from the treasury wallet on either network
   const tokenId = await resolveUsdcTokenId(apiKey, walletId)

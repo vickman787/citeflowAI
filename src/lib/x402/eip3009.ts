@@ -1,9 +1,13 @@
 import { verifyTypedData, type Hex, type Address } from 'viem'
 import crypto from 'crypto'
 import { generateDynamicCiphertext } from '@/lib/payments/circle-api'
+import { NETWORKS } from '@/lib/network'
+import { getCircleCredentials } from '@/lib/circle-credentials'
 
-export const ARC_MAINNET_USDC = '0x3600000000000000000000000000000000000000' as const
-export const ARC_TESTNET_USDC = '0x036CbD53842c5426634e7929541eC2318f3dCF7e' as const
+// Arc uses the same Circle-issued USDC address on mainnet and testnet.
+// Source: https://developers.circle.com/stablecoins/usdc-contract-addresses
+export const ARC_MAINNET_USDC = NETWORKS['arc-mainnet'].usdcAddress as Address
+export const ARC_TESTNET_USDC = NETWORKS['arc-testnet'].usdcAddress as Address
 
 export const ARC_MAINNET_CHAIN_ID = 5042
 export const ARC_TESTNET_CHAIN_ID = 5042002
@@ -188,18 +192,16 @@ export async function settleEip3009Payment(
 }> {
   try {
     const isMainnet = network === 'eip155:5042' || network === 'arc-mainnet'
-    const apiKey = isMainnet
-      ? (process.env.CIRCLE_API_KEY_MAINNET || process.env.CIRCLE_API_KEY)
-      : process.env.CIRCLE_API_KEY
-    const walletId = isMainnet
-      ? (process.env.CIRCLE_WALLET_ID_MAINNET || process.env.CIRCLE_WALLET_ID)
-      : process.env.CIRCLE_WALLET_ID
-    const rawSecret = isMainnet
-      ? (process.env.RAW_ENTITY_SECRET_MAINNET || process.env.RAW_ENTITY_SECRET)
-      : process.env.RAW_ENTITY_SECRET
-
-    if (!apiKey || !walletId || !rawSecret) {
-      return { success: false, error: 'Circle configuration missing for on chain settlement' }
+    let apiKey: string
+    let walletId: string
+    let rawSecret: string
+    try {
+      const creds = getCircleCredentials(isMainnet ? 'arc-mainnet' : 'arc-testnet')
+      apiKey = creds.apiKey
+      walletId = creds.walletId
+      rawSecret = creds.rawEntitySecret
+    } catch (credErr: any) {
+      return { success: false, error: credErr.message }
     }
 
     const auth = payload.authorization

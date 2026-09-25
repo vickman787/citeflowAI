@@ -22,5 +22,21 @@ export const validateEnv = () => {
       errors: result.error.issues.map((e: z.ZodIssue) => e.path.join('.')),
     };
   }
+
+  // If a mainnet app id is configured, mainnet is enabled and its credentials
+  // must all be present. Mainnet is never allowed to run on a partial config.
+  const mainnetEnabled = !!process.env.NEXT_PUBLIC_CIRCLE_APP_ID_MAINNET;
+  if (mainnetEnabled) {
+    const missing = [
+      'CIRCLE_API_KEY_MAINNET',
+      'CIRCLE_WALLET_ID_MAINNET',
+      'AGENT_TREASURY_ADDRESS_MAINNET',
+      'RAW_ENTITY_SECRET_MAINNET',
+    ].filter((key) => !process.env[key]);
+    if (missing.length > 0) {
+      return { isValid: false, errors: missing };
+    }
+  }
+
   return { isValid: true, errors: [] };
 };

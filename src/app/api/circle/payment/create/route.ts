@@ -1,4 +1,5 @@
 import { initiateUserControlledWalletsClient } from '@circle-fin/user-controlled-wallets';
+import { getCircleCredentials, getTreasuryAddress } from '@/lib/circle-credentials';
 import { NextResponse } from 'next/server';
 
 export async function POST(req: Request) {
@@ -13,12 +14,14 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
-    const apiKey = (isMainnet
-      ? (process.env.CIRCLE_API_KEY_MAINNET || process.env.CIRCLE_API_KEY)
-      : process.env.CIRCLE_API_KEY) as string;
-
-    if (!apiKey) {
-      return NextResponse.json({ error: 'Missing Circle API Key' }, { status: 500 });
+    let apiKey: string;
+    let treasuryAddress: string;
+    try {
+      const activeNetworkCreds = isMainnet ? 'arc-mainnet' : 'arc-testnet';
+      apiKey = getCircleCredentials(activeNetworkCreds).apiKey;
+      treasuryAddress = getTreasuryAddress(activeNetworkCreds);
+    } catch (credErr: any) {
+      return NextResponse.json({ error: credErr.message }, { status: 500 });
     }
 
     const circleUserSdk = initiateUserControlledWalletsClient({ apiKey });
@@ -48,14 +51,6 @@ export async function POST(req: Request) {
     }
 
     // 2. Create the transfer transaction challenge
-    const treasuryAddress = isMainnet
-      ? (process.env.AGENT_TREASURY_ADDRESS_MAINNET || process.env.AGENT_TREASURY_ADDRESS)
-      : process.env.AGENT_TREASURY_ADDRESS;
-    
-    if (!treasuryAddress) {
-      throw new Error("AGENT_TREASURY_ADDRESS is not configured");
-    }
-
     const txRes = await circleUserSdk.createTransaction({
       userToken,
       walletId,

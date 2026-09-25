@@ -1,4 +1,4 @@
-import { createClient } from '@/utils/supabase/server'
+import { createAdminClient } from '@/utils/supabase/admin'
 import crypto from 'crypto'
 
 // EIP-3009 EIP712 Domain for USDC on Arc Testnet
@@ -21,13 +21,18 @@ const RECEIVE_WITH_AUTHORIZATION_TYPES = {
 }
 
 export async function authorizePayment(sessionId: string, sourceId: string, amountUsdc: number, recipientAddress: string) {
-  const supabase = await createClient()
+  const supabase = await createAdminClient()
 
   // 1. Enforce Budget Limits
   const today = new Date().toISOString().split('T')[0]
-  
+  // Configurable platform-wide daily creator payout cap. Defaults to $100/day.
+  const dailyLimit = parseFloat(process.env.DAILY_TREASURY_LIMIT_USDC || '100')
+  if (!Number.isFinite(dailyLimit) || dailyLimit <= 0) {
+    throw new Error('DAILY_TREASURY_LIMIT_USDC is not a valid positive number')
+  }
+
   // Upsert today's treasury limit if it doesn't exist
-  await supabase.from('treasury_limits').upsert({ date: today, daily_limit_usdc: 100.00 }, { onConflict: 'date' })
+  await supabase.from('treasury_limits').upsert({ date: today, daily_limit_usdc: dailyLimit }, { onConflict: 'date' })
   
   const { data: limits, error: limitError } = await supabase
     .from('treasury_limits')

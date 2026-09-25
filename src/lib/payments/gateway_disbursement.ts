@@ -1,6 +1,7 @@
 import crypto from 'crypto'
 import { pad, parseUnits, maxUint256 } from 'viem'
 import { generateDynamicCiphertext } from './circle-api'
+import { getCircleCredentials, getTreasuryAddress } from '@/lib/circle-credentials'
 
 const MAINNET_GATEWAY_WALLET = '0x77777777Dcc4d5A8B6E418Fd04D8997ef11000eE'
 const MAINNET_GATEWAY_MINTER = '0x2222222d7164433c4C09B0b0D809a9b52C04C205'
@@ -20,13 +21,18 @@ export async function autoDisburseGatewayBalance(network: string = 'arc-mainnet'
       return { success: false, message: 'Automated Gateway disbursement only active for Arc Mainnet' }
     }
 
-    const apiKey = process.env.CIRCLE_API_KEY_MAINNET || process.env.CIRCLE_API_KEY
-    const walletId = process.env.CIRCLE_WALLET_ID_MAINNET || process.env.CIRCLE_WALLET_ID
-    const rawSecret = process.env.RAW_ENTITY_SECRET_MAINNET || process.env.RAW_ENTITY_SECRET
-    const treasuryAddress = process.env.AGENT_TREASURY_ADDRESS_MAINNET || '0x30d20839e4279358dd0c908cb7d96424e683aba3'
-
-    if (!apiKey || !walletId || !rawSecret) {
-      return { success: false, message: 'Missing Circle Mainnet credentials for automated disbursement' }
+    let apiKey: string
+    let walletId: string
+    let rawSecret: string
+    let treasuryAddress: string
+    try {
+      const creds = getCircleCredentials('arc-mainnet')
+      apiKey = creds.apiKey
+      walletId = creds.walletId
+      rawSecret = creds.rawEntitySecret
+      treasuryAddress = getTreasuryAddress('arc-mainnet')
+    } catch (credErr: any) {
+      return { success: false, message: credErr.message }
     }
 
     // 1. Check live Gateway available balance

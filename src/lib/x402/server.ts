@@ -1,5 +1,6 @@
 import { x402ResourceServer, x402HTTPResourceServer, type RoutesConfig, type FacilitatorClient } from '@x402/core/server'
 import { BatchFacilitatorClient, GatewayEvmScheme } from '@circle-fin/x402-batching/server'
+import { NETWORKS } from '@/lib/network'
 
 // Circle's testnet and mainnet Gateway facilitators
 const testnetFacilitator = new BatchFacilitatorClient({
@@ -26,7 +27,7 @@ export const RESEARCH_PAYMENT_ACCEPTS = [
     scheme: 'exact',
     network: 'eip155:5042',
     amount: '1000000',
-    asset: '0x3600000000000000000000000000000000000000',
+    asset: NETWORKS['arc-mainnet'].usdcAddress,
     payTo: AGENT_TREASURY_ADDRESS_MAINNET,
     maxTimeoutSeconds: 2592000,
     extra: {
@@ -39,13 +40,13 @@ export const RESEARCH_PAYMENT_ACCEPTS = [
     scheme: 'exact',
     network: 'eip155:5042',
     amount: '1000000',
-    asset: '0x3600000000000000000000000000000000000000',
+    asset: NETWORKS['arc-mainnet'].usdcAddress,
     payTo: AGENT_TREASURY_ADDRESS_MAINNET,
     maxTimeoutSeconds: 2592000,
     extra: {
       name: 'GatewayWalletBatched',
       version: '1',
-      verifyingContract: '0x77777777dcc4d5a8b6e418fd04d8997ef11000ee',
+      verifyingContract: NETWORKS['arc-mainnet'].gatewayWallet,
     },
   },
   // Arc Testnet: Standard x402 Exact EIP-3009
@@ -53,7 +54,7 @@ export const RESEARCH_PAYMENT_ACCEPTS = [
     scheme: 'exact',
     network: 'eip155:5042002',
     amount: '1000000',
-    asset: '0x036CbD53842c5426634e7929541eC2318f3dCF7e',
+    asset: NETWORKS['arc-testnet'].usdcAddress,
     payTo: AGENT_TREASURY_ADDRESS,
     maxTimeoutSeconds: 2592000,
     extra: {
@@ -66,13 +67,13 @@ export const RESEARCH_PAYMENT_ACCEPTS = [
     scheme: 'exact',
     network: 'eip155:5042002',
     amount: '1000000',
-    asset: '0x036CbD53842c5426634e7929541eC2318f3dCF7e',
+    asset: NETWORKS['arc-testnet'].usdcAddress,
     payTo: AGENT_TREASURY_ADDRESS,
     maxTimeoutSeconds: 2592000,
     extra: {
       name: 'GatewayWalletBatched',
       version: '1',
-      verifyingContract: '0x77777777dcc4d5a8b6e418fd04d8997ef11000ee',
+      verifyingContract: NETWORKS['arc-testnet'].gatewayWallet,
     },
   },
 ]
@@ -129,9 +130,15 @@ let initialized: Promise<void> | null = null
 // Route handlers run per-request in a serverless/edge environment, but the
 // resource server only needs to fetch facilitator support once — cache the
 // initialize() promise so concurrent requests share a single init.
+//
+// On failure the cache is cleared so a transient facilitator outage does not
+// permanently brick the endpoint: the next request retries initialization.
 export async function getX402Server() {
   if (!initialized) {
-    initialized = httpServer.initialize()
+    initialized = httpServer.initialize().catch((err) => {
+      initialized = null
+      throw err
+    })
   }
   await initialized
   return httpServer

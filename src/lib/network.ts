@@ -14,6 +14,11 @@ export interface NetworkConfig {
   eip155: string;
   gatewayUrl: string;
   isMainnet: boolean;
+  // Circle-issued USDC contract address. Arc uses the same address on mainnet
+  // and testnet. Source: https://developers.circle.com/stablecoins/usdc-contract-addresses
+  usdcAddress: string;
+  // Circle Gateway wallet contract used for batched x402 payments.
+  gatewayWallet: string;
 }
 
 export const NETWORKS: Record<NetworkId, NetworkConfig> = {
@@ -31,6 +36,8 @@ export const NETWORKS: Record<NetworkId, NetworkConfig> = {
     eip155: 'eip155:5042002',
     gatewayUrl: 'https://gateway-api-testnet.circle.com',
     isMainnet: false,
+    usdcAddress: '0x3600000000000000000000000000000000000000',
+    gatewayWallet: '0x0077777d7EBA4688BDeF3E311b846F25870A19B9',
   },
   'arc-mainnet': {
     id: 'arc-mainnet',
@@ -45,6 +52,8 @@ export const NETWORKS: Record<NetworkId, NetworkConfig> = {
     eip155: 'eip155:5042',
     gatewayUrl: 'https://gateway-api.circle.com',
     isMainnet: true,
+    usdcAddress: '0x3600000000000000000000000000000000000000',
+    gatewayWallet: '0x77777777Dcc4d5A8B6E418Fd04D8997ef11000eE',
   },
 };
 

@@ -3,6 +3,7 @@ import { runResearchAgent } from '@/lib/ai/research-agent'
 import { createAdminClient } from '@/utils/supabase/admin'
 import { createClient } from '@/utils/supabase/server'
 import { initiateUserControlledWalletsClient } from '@circle-fin/user-controlled-wallets'
+import { getCircleCredentials, getTreasuryAddress } from '@/lib/circle-credentials'
 import { z } from 'zod'
 
 const researchRequestSchema = z.object({
@@ -20,15 +21,9 @@ const DEAD_TX_STATES = ['FAILED', 'DENIED', 'CANCELLED']
 // the challenge completed, and it produced a transaction paying the treasury
 // at least maxBudget. Returns the transaction id and the payer's address.
 async function verifyFundingPayment(userToken: string, challengeId: string, maxBudget: number, isMainnet = false) {
-  const apiKey = isMainnet
-    ? (process.env.CIRCLE_API_KEY_MAINNET || process.env.CIRCLE_API_KEY)
-    : process.env.CIRCLE_API_KEY
-  const treasuryAddress = isMainnet
-    ? (process.env.AGENT_TREASURY_ADDRESS_MAINNET || process.env.AGENT_TREASURY_ADDRESS)
-    : process.env.AGENT_TREASURY_ADDRESS
-
-  if (!apiKey) throw new Error('Circle API key is not configured')
-  if (!treasuryAddress) throw new Error('AGENT_TREASURY_ADDRESS is not configured')
+  const network = isMainnet ? 'arc-mainnet' : 'arc-testnet'
+  const apiKey = getCircleCredentials(network).apiKey
+  const treasuryAddress = getTreasuryAddress(network)
 
   const circleClient = initiateUserControlledWalletsClient({
     apiKey,

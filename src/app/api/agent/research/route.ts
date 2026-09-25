@@ -2,13 +2,18 @@ import { NextRequest, NextResponse } from 'next/server'
 import {
   getX402Server,
   RESEARCH_PAYMENT_ACCEPTS,
-  AGENT_TREASURY_ADDRESS,
-  AGENT_TREASURY_ADDRESS_MAINNET,
 } from '@/lib/x402/server'
+import { getTreasuryAddress } from '@/lib/circle-credentials'
 import { buildRequestContext } from '@/lib/x402/next-adapter'
 import { createAdminClient } from '@/utils/supabase/admin'
 import { runResearchAgent } from '@/lib/ai/research-agent'
 import { verifyEip3009Payment, settleEip3009Payment } from '@/lib/x402/eip3009'
+import { NETWORKS } from '@/lib/network'
+
+const GATEWAY_WALLETS = [
+  NETWORKS['arc-mainnet'].gatewayWallet.toLowerCase(),
+  NETWORKS['arc-testnet'].gatewayWallet.toLowerCase(),
+]
 
 function parseRawPaymentHeader(rawHeader: string | undefined | null): any | null {
   if (!rawHeader) return null
@@ -63,7 +68,9 @@ export async function GET(request: NextRequest) {
   // 2. Identify payment rail
   const isGatewayBatched =
     parsedPayment?.accepted?.extra?.name === 'GatewayWalletBatched' ||
-    parsedPayment?.accepted?.extra?.verifyingContract === '0x77777777dcc4d5a8b6e418fd04d8997ef11000ee'
+    GATEWAY_WALLETS.includes(
+      String(parsedPayment?.accepted?.extra?.verifyingContract || '').toLowerCase()
+    )
 
   // Standard x402 Exact EIP 3009 Rail (OKX Agent Wallet, Goat SDK, universal x402 agents)
   if (!isGatewayBatched) {
@@ -75,13 +82,17 @@ export async function GET(request: NextRequest) {
       )
     }
 
+    // The payment's own network is authoritative. A client header or query param
+    // must never override which treasury the signed payment has to target.
     const acceptedNetwork = parsedPayment.accepted?.network || parsedPayment.network || 'eip155:5042'
-    const isMainnet =
-      acceptedNetwork === 'eip155:5042' ||
-      request.headers.get('x-network') === 'arc-mainnet' ||
-      request.nextUrl.searchParams.get('network') === 'arc-mainnet'
+    const isMainnet = acceptedNetwork === 'eip155:5042'
     const activeNetwork = isMainnet ? 'arc-mainnet' : 'arc-testnet'
-    const expectedPayTo = isMainnet ? AGENT_TREASURY_ADDRESS_MAINNET : AGENT_TREASURY_ADDRESS
+    let expectedPayTo: string
+    try {
+      expectedPayTo = getTreasuryAddress(activeNetwork)
+    } catch (credErr: any) {
+      return NextResponse.json({ error: credErr.message }, { status: 500 })
+    }
 
     const authObj = parsedPayment.payload?.authorization || parsedPayment.payload
     const rawSig = parsedPayment.payload?.signature || parsedPayment.signature
@@ -105,6 +116,28 @@ export async function GET(request: NextRequest) {
     const budget = 1.0
 
     const supabase = createAdminClient()
+
+    // Replay guard: a signed EIP-3009 authorization carries a unique nonce and
+    // can only fund one research session. Without this, a replayed authorization
+    // would serve research and pay creators again before on-chain settlement
+    // rejects the reused nonce.
+    const authNonce = authObj?.nonce ? String(authObj.nonce) : ''
+    if (authNonce) {
+      const { data: priorUse } = await supabase
+        .from('audit_events')
+        .select('id')
+        .eq('event_type', 'agent_eip3009_auth_used')
+        .eq('details->>nonce', authNonce)
+        .limit(1)
+
+      if (priorUse && priorUse.length > 0) {
+        return NextResponse.json(
+          { error: 'This payment authorization has already been used' },
+          { status: 409 }
+        )
+      }
+    }
+
     const { data: session, error: sessionError } = await supabase
       .from('research_sessions')
       .insert({ user_id: null, query, budget_usdc: budget, status: 'active' })
@@ -119,7 +152,48 @@ export async function GET(request: NextRequest) {
       )
     }
 
+    if (authNonce) {
+      const { error: guardError } = await supabase.from('audit_events').insert({
+        event_type: 'agent_eip3009_auth_used',
+        details: {
+          nonce: authNonce,
+          payer: payerAddress,
+          sessionId: session.id,
+          network: activeNetwork,
+        },
+      })
+
+      if (guardError) {
+        // 23505 = unique_violation. A partial unique index on (details->>nonce)
+        // makes this the atomic backstop for the pre-check above, closing the
+        // check-then-insert race.
+        if ((guardError as any).code === '23505') {
+          await supabase.from('research_sessions').update({ status: 'failed' }).eq('id', session.id)
+          return NextResponse.json(
+            { error: 'This payment authorization has already been used' },
+            { status: 409 }
+          )
+        }
+        // Any other bookkeeping error must never block a valid payment.
+        console.error('Failed to record EIP-3009 replay guard entry:', guardError)
+      }
+    }
+
     try {
+      // Settle the buyer's payment BEFORE any creator payout. The research agent
+      // pays creators from the treasury; if we served and paid first and settlement
+      // then failed, the treasury would absorb the loss. Settling first means an
+      // unsettled authorization never triggers payouts.
+      const settlement = await settleEip3009Payment(eipPayload, acceptedNetwork)
+
+      if (!settlement.success) {
+        await supabase.from('research_sessions').update({ status: 'failed' }).eq('id', session.id)
+        return NextResponse.json(
+          { error: 'Payment settlement failed', details: settlement.error },
+          { status: 402 }
+        )
+      }
+
       const agentResult = await runResearchAgent(
         session.id,
         query,
@@ -134,9 +208,6 @@ export async function GET(request: NextRequest) {
         .from('research_sessions')
         .update({ status: 'completed', result: agentResult })
         .eq('id', session.id)
-
-      // On chain settlement on Arc Mainnet
-      const settlement = await settleEip3009Payment(eipPayload, acceptedNetwork)
 
       const paymentResponseData = {
         success: settlement.success,
@@ -202,10 +273,7 @@ export async function GET(request: NextRequest) {
   const authorization = result.paymentPayload.payload?.authorization as { from?: string } | undefined
   const payerAddress = authorization?.from
 
-  const isMainnet =
-    result.paymentRequirements.network === 'eip155:5042' ||
-    request.headers.get('x-network') === 'arc-mainnet' ||
-    request.nextUrl.searchParams.get('network') === 'arc-mainnet'
+  const isMainnet = result.paymentRequirements.network === 'eip155:5042'
   const activeNetwork = isMainnet ? 'arc-mainnet' : 'arc-testnet'
 
   const supabase = createAdminClient()
