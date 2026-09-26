@@ -218,3 +218,152 @@ export async function getTreasuryGatewayBalance(): Promise<number> {
   }
   return parseFloat(data.balances?.[0]?.balance || '0')
 }
+
+// Withdraw a specific amount from the treasury's Arc mainnet Gateway balance
+// straight to an arbitrary destination. This is how the Gateway rail refunds a
+// buyer: the unspent budget comes from the very pool their payment settled into,
+// so it does not depend on on-chain float. Falls back to on-chain elsewhere.
+export async function withdrawGatewayTo(
+  destination: string,
+  amountUsdc: string,
+  network: string = 'arc-mainnet'
+): Promise<{ success: boolean; message: string; txHash?: string }> {
+  try {
+    if (network !== 'arc-mainnet') {
+      return { success: false, message: 'Gateway withdrawal refunds are only enabled for Arc Mainnet' }
+    }
+
+    const amount = parseFloat(amountUsdc)
+    if (!Number.isFinite(amount) || amount <= 0) {
+      return { success: false, message: 'Invalid refund amount' }
+    }
+
+    let apiKey: string
+    let walletId: string
+    let rawSecret: string
+    let treasuryAddress: string
+    try {
+      const creds = getCircleCredentials('arc-mainnet')
+      apiKey = creds.apiKey
+      walletId = creds.walletId
+      rawSecret = creds.rawEntitySecret
+      treasuryAddress = getTreasuryAddress('arc-mainnet')
+    } catch (credErr: any) {
+      return { success: false, message: credErr.message }
+    }
+
+    const available = await getTreasuryGatewayBalance()
+    if (amount + BASE_SETTLEMENT_FEE > available) {
+      return {
+        success: false,
+        message: `Insufficient Gateway balance (${available.toFixed(4)}) for refund of ${amount}`,
+      }
+    }
+
+    const addressToBytes32 = (addr: string) => pad(addr.toLowerCase() as `0x${string}`, { size: 32 })
+    const valueAtomic = parseUnits(amount.toFixed(6), 6)
+    const salt = `0x${crypto.randomBytes(32).toString('hex')}` as `0x${string}`
+
+    const burnIntent = {
+      maxBlockHeight: maxUint256.toString(),
+      maxFee: parseUnits('2.01', 6).toString(),
+      spec: {
+        version: 1,
+        sourceDomain: 26,
+        destinationDomain: 26,
+        sourceContract: addressToBytes32(MAINNET_GATEWAY_WALLET),
+        destinationContract: addressToBytes32(MAINNET_GATEWAY_MINTER),
+        sourceToken: addressToBytes32(USDC_ARC_MAINNET),
+        destinationToken: addressToBytes32(USDC_ARC_MAINNET),
+        sourceDepositor: addressToBytes32(treasuryAddress),
+        destinationRecipient: addressToBytes32(destination),
+        sourceSigner: addressToBytes32(treasuryAddress),
+        destinationCaller: addressToBytes32(ZERO_ADDRESS),
+        value: valueAtomic.toString(),
+        salt,
+        hookData: '0x',
+      },
+    }
+
+    const typedData = {
+      domain: { name: 'GatewayWallet', version: '1' },
+      types: {
+        EIP712Domain: [
+          { name: 'name', type: 'string' },
+          { name: 'version', type: 'string' },
+        ],
+        TransferSpec: [
+          { name: 'version', type: 'uint32' },
+          { name: 'sourceDomain', type: 'uint32' },
+          { name: 'destinationDomain', type: 'uint32' },
+          { name: 'sourceContract', type: 'bytes32' },
+          { name: 'destinationContract', type: 'bytes32' },
+          { name: 'sourceToken', type: 'bytes32' },
+          { name: 'destinationToken', type: 'bytes32' },
+          { name: 'sourceDepositor', type: 'bytes32' },
+          { name: 'destinationRecipient', type: 'bytes32' },
+          { name: 'sourceSigner', type: 'bytes32' },
+          { name: 'destinationCaller', type: 'bytes32' },
+          { name: 'value', type: 'uint256' },
+          { name: 'salt', type: 'bytes32' },
+          { name: 'hookData', type: 'bytes' },
+        ],
+        BurnIntent: [
+          { name: 'maxBlockHeight', type: 'uint256' },
+          { name: 'maxFee', type: 'uint256' },
+          { name: 'spec', type: 'TransferSpec' },
+        ],
+      },
+      primaryType: 'BurnIntent',
+      message: burnIntent,
+    }
+
+    const ciphertext = await generateDynamicCiphertext(rawSecret, apiKey)
+    const signRes = await fetch('https://api.circle.com/v1/w3s/developer/sign/typedData', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ walletId, entitySecretCiphertext: ciphertext, data: JSON.stringify(typedData) }),
+    })
+    const signData = await signRes.json()
+    if (!signRes.ok || !signData.data?.signature) {
+      return { success: false, message: `Circle sign failed: ${signData.message || 'no signature'}` }
+    }
+
+    const transferRes = await fetch('https://gateway-api.circle.com/v1/transfer', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-ARC-PRIVATE-MAINNET-ENABLED': 'true' },
+      body: JSON.stringify([{ burnIntent, signature: signData.data.signature }]),
+    })
+    const transferResult = await transferRes.json()
+    if (!transferResult.attestation || !transferResult.signature) {
+      return { success: false, message: `Gateway transfer failed: ${transferResult.message || 'no attestation'}` }
+    }
+
+    const mintCiphertext = await generateDynamicCiphertext(rawSecret, apiKey)
+    const mintRes = await fetch('https://api.circle.com/v1/w3s/developer/transactions/contractExecution', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        idempotencyKey: crypto.randomUUID(),
+        walletId,
+        contractAddress: MAINNET_GATEWAY_MINTER,
+        abiFunctionSignature: 'gatewayMint(bytes,bytes)',
+        abiParameters: [transferResult.attestation, transferResult.signature],
+        feeLevel: 'MEDIUM',
+        entitySecretCiphertext: mintCiphertext,
+      }),
+    })
+    const mintData = await mintRes.json()
+    if (!mintRes.ok) {
+      return { success: false, message: `gatewayMint failed: ${mintData.message || 'unknown error'}` }
+    }
+
+    return {
+      success: true,
+      message: `Gateway refund of ${amount} USDC sent to ${destination}`,
+      txHash: mintData.data?.id,
+    }
+  } catch (err: any) {
+    return { success: false, message: err.message || 'Gateway withdrawal failed' }
+  }
+}

@@ -297,7 +297,10 @@ export async function GET(request: NextRequest) {
 
   const gwBudget = parseFloat(gwRequirement.amount) / 1_000_000
   const gwAuthorization = (parsedPayment?.payload?.authorization || {}) as { from?: string; nonce?: string }
-  const gwPayer = gwVerify.payer || gwAuthorization.from
+  // The wallet that signed the payment (authorization.from) is the wallet the
+  // user pays from, so refunds must follow it. Circle's verify "payer" has been
+  // observed to be a different address and is only a fallback.
+  const gwPayer = gwAuthorization.from || gwVerify.payer
   const gwNonce = gwAuthorization.nonce ? String(gwAuthorization.nonce) : ''
 
   const supabase = createAdminClient()
@@ -334,7 +337,14 @@ export async function GET(request: NextRequest) {
   if (gwNonce) {
     const { error: guardError } = await supabase.from('audit_events').insert({
       event_type: 'agent_eip3009_auth_used',
-      details: { nonce: gwNonce, payer: gwPayer, sessionId: session.id, network: gwActiveNetwork },
+      details: {
+        nonce: gwNonce,
+        payer: gwPayer,
+        signer: gwAuthorization.from,
+        verifiedPayer: gwVerify.payer,
+        sessionId: session.id,
+        network: gwActiveNetwork,
+      },
     })
     if (guardError) {
       if ((guardError as any).code === '23505') {

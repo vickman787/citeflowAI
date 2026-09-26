@@ -1,6 +1,7 @@
 import { createAdminClient } from '@/utils/supabase/admin'
 import { authorizePayment } from '../payments/treasury'
 import { executeGatewayTransfer } from '../payments/circle-api'
+import { withdrawGatewayTo } from '../payments/gateway_disbursement'
 import { embedQuery, cosineSimilarity, parseVector } from './embeddings'
 import { z } from 'zod'
 
@@ -133,6 +134,11 @@ async function recordAndAttemptRefund(
   onProgress?: (msg: string) => void
 ): Promise<void> {
   const amountStr = amount.toFixed(2)
+
+  // `walletAddress` is the wallet that signed the payment, so the refund follows
+  // that specific user. Never refund to an address that is not the payer.
+  const refundTarget = walletAddress
+
   let pendingId: string | undefined
 
   try {
@@ -140,7 +146,7 @@ async function recordAndAttemptRefund(
       .from('pending_refunds')
       .insert({
         session_id: sessionId,
-        payer_address: walletAddress,
+        payer_address: refundTarget,
         amount_usdc: amount,
         network,
         status: 'pending',
@@ -153,7 +159,17 @@ async function recordAndAttemptRefund(
   }
 
   try {
-    const txId = await executeGatewayTransfer(walletAddress, amountStr, network)
+    let txId: string
+    if (network === 'arc-mainnet') {
+      // Refund from the Gateway balance the buyer's payment settled into, so it
+      // does not depend on on-chain float. Falls back to an on-chain transfer.
+      const gw = await withdrawGatewayTo(refundTarget, amountStr, network)
+      txId = gw.success
+        ? gw.txHash || 'gateway'
+        : await executeGatewayTransfer(refundTarget, amountStr, network)
+    } else {
+      txId = await executeGatewayTransfer(refundTarget, amountStr, network)
+    }
     if (pendingId) {
       await supabase
         .from('pending_refunds')

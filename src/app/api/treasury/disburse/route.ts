@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { autoDisburseGatewayBalance } from '@/lib/payments/gateway_disbursement'
+import { autoDisburseGatewayBalance, withdrawGatewayTo } from '@/lib/payments/gateway_disbursement'
 import { executeGatewayTransfer } from '@/lib/payments/circle-api'
 import { createAdminClient } from '@/utils/supabase/admin'
 
@@ -20,10 +20,12 @@ export async function GET(request: NextRequest) {
     console.warn('CRON_SECRET is not set; /api/treasury/disburse is publicly callable.')
   }
 
-  const sweep = await autoDisburseGatewayBalance('arc-mainnet')
+  // Pay owed refunds first (from the Gateway balance when possible), then sweep
+  // whatever remains on-chain.
   const refunds = await processPendingRefunds()
+  const sweep = await autoDisburseGatewayBalance('arc-mainnet')
 
-  return NextResponse.json({ sweep, refunds })
+  return NextResponse.json({ refunds, sweep })
 }
 
 async function processPendingRefunds(limit = 25) {
@@ -47,11 +49,16 @@ async function processPendingRefunds(limit = 25) {
   for (const refund of data || []) {
     const network = refund.network === 'arc-mainnet' ? 'arc-mainnet' : 'arc-testnet'
     try {
-      const txId = await executeGatewayTransfer(
-        refund.payer_address,
-        Number(refund.amount_usdc).toFixed(2),
-        network
-      )
+      const amountStr = Number(refund.amount_usdc).toFixed(2)
+      let txId: string
+      if (network === 'arc-mainnet') {
+        const gw = await withdrawGatewayTo(refund.payer_address, amountStr, network)
+        txId = gw.success
+          ? gw.txHash || 'gateway'
+          : await executeGatewayTransfer(refund.payer_address, amountStr, network)
+      } else {
+        txId = await executeGatewayTransfer(refund.payer_address, amountStr, network)
+      }
       await supabase
         .from('pending_refunds')
         .update({ status: 'paid', paid_transaction_id: txId })
