@@ -2,20 +2,24 @@ import { x402ResourceServer, x402HTTPResourceServer, type RoutesConfig, type Fac
 import { BatchFacilitatorClient, GatewayEvmScheme } from '@circle-fin/x402-batching/server'
 import { NETWORKS } from '@/lib/network'
 
-// Circle's testnet and mainnet Gateway facilitators
-const testnetFacilitator = new BatchFacilitatorClient({
+// Circle's testnet and mainnet Gateway facilitators. Kept as BatchFacilitatorClient
+// references (not cast) so the custom batched rail can call verify/settle directly.
+const testnetFacilitatorClient = new BatchFacilitatorClient({
   url: 'https://gateway-api-testnet.circle.com',
-}) as unknown as FacilitatorClient
+})
 
-const mainnetFacilitator = new BatchFacilitatorClient({
+const mainnetFacilitatorClient = new BatchFacilitatorClient({
   url: 'https://gateway-api.circle.com',
   // Arc mainnet Gateway requires the X-ARC-PRIVATE-MAINNET-ENABLED header on
   // verify/settle/supported calls. Without it, batched (Circle Agent Wallet)
   // payments against Arc mainnet cannot complete.
   arcPrivateMainnet: true,
-}) as unknown as FacilitatorClient
+})
 
-const coreServer = new x402ResourceServer([testnetFacilitator, mainnetFacilitator])
+const coreServer = new x402ResourceServer([
+  testnetFacilitatorClient as unknown as FacilitatorClient,
+  mainnetFacilitatorClient as unknown as FacilitatorClient,
+])
 
 // GatewayEvmScheme merges facilitator extra data (verifyingContract, EIP-712 domain, USDC address)
 // Register both Arc Testnet and Arc Mainnet
@@ -81,6 +85,19 @@ export const RESEARCH_PAYMENT_ACCEPTS = [
     },
   },
 ]
+
+// The Gateway batched requirement for a network, used by the custom batched rail.
+export function getGatewayRequirement(network: string) {
+  return RESEARCH_PAYMENT_ACCEPTS.find(
+    (accept) => accept.network === network && accept.extra?.name === 'GatewayWalletBatched'
+  )
+}
+
+// Direct facilitator access for the custom batched rail, which calls verify and
+// settle itself instead of going through the strict x402 requirement matcher.
+export function getGatewayFacilitator(network: string): BatchFacilitatorClient {
+  return network === 'eip155:5042' ? mainnetFacilitatorClient : testnetFacilitatorClient
+}
 
 const routes: RoutesConfig = {
   'GET /api/treasury/fund': {

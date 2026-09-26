@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import {
-  getX402Server,
   RESEARCH_PAYMENT_ACCEPTS,
+  getGatewayRequirement,
+  getGatewayFacilitator,
 } from '@/lib/x402/server'
 import { getTreasuryAddress } from '@/lib/circle-credentials'
-import { buildRequestContext } from '@/lib/x402/next-adapter'
 import { createAdminClient } from '@/utils/supabase/admin'
 import { runResearchAgent } from '@/lib/ai/research-agent'
 import { verifyEip3009Payment, settleEip3009Payment } from '@/lib/x402/eip3009'
@@ -240,46 +240,86 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  // Circle Gateway Batched Rail (Circle Agent Wallet)
-  const server = await getX402Server()
-  const context = await buildRequestContext(request, '/api/agent/research')
-  const result = await server.processHTTPRequest(context)
-
-  if (result.type === 'payment-error') {
-    const body: any = result.response.body ?? {}
-    if (result.response.status === 402 && (!body.accepts || body.accepts.length < 2)) {
-      body.accepts = RESEARCH_PAYMENT_ACCEPTS
-    }
-    return NextResponse.json(body, {
-      status: result.response.status,
-      headers: result.response.headers,
-    })
-  }
-
-  if (result.type === 'no-payment-required') {
-    return NextResponse.json({ error: 'Route is missing its payment configuration' }, { status: 500 })
-  }
-
-  const query = request.nextUrl.searchParams.get('q')
-  if (!query || query.trim().length < 5) {
+  // Circle Gateway Batched Rail (Circle Agent Wallet).
+  //
+  // Deliberately bypasses the strict x402 requirement matcher. Circle CLI
+  // normalizes addresses (checksummed payTo/asset) and drops extra fields
+  // (minValiditySeconds, assets[]) from the echoed `accepted`, which the matcher
+  // rejects with "No matching payment requirements". We verify and settle
+  // directly with the Gateway facilitator using our own canonical requirement.
+  const gwQuery = request.nextUrl.searchParams.get('q')
+  if (!gwQuery || gwQuery.trim().length < 5) {
     return NextResponse.json(
       { error: 'Missing or too short "q" query parameter (min 5 characters)' },
       { status: 400 }
     )
   }
 
-  const budget = parseFloat(result.paymentRequirements.amount) / 1_000_000
+  const gwNetwork = parsedPayment?.accepted?.network || parsedPayment?.network || 'eip155:5042'
+  const gwIsMainnet = gwNetwork === 'eip155:5042'
+  const gwActiveNetwork = gwIsMainnet ? 'arc-mainnet' : 'arc-testnet'
 
-  const authorization = result.paymentPayload.payload?.authorization as { from?: string } | undefined
-  const payerAddress = authorization?.from
+  const gwBase = getGatewayRequirement(gwNetwork)
+  if (!gwBase) {
+    return NextResponse.json({ error: `Unsupported payment network: ${gwNetwork}` }, { status: 400 })
+  }
 
-  const isMainnet = result.paymentRequirements.network === 'eip155:5042'
-  const activeNetwork = isMainnet ? 'arc-mainnet' : 'arc-testnet'
+  // Use our own amount/asset/payTo (a client must not be able to redirect the
+  // payment), but take the EIP-712 domain fields from what the client echoed so
+  // Circle verifies the signature against the domain the wallet actually used.
+  const gwAcceptedExtra = (parsedPayment?.accepted?.extra || {}) as Record<string, unknown>
+  const gwRequirement = {
+    scheme: gwBase.scheme,
+    network: gwBase.network,
+    amount: gwBase.amount,
+    asset: gwBase.asset,
+    payTo: gwBase.payTo,
+    maxTimeoutSeconds: gwBase.maxTimeoutSeconds,
+    extra: { ...gwBase.extra, ...gwAcceptedExtra },
+  }
+
+  const gwFacilitator = getGatewayFacilitator(gwNetwork)
+
+  let gwVerify: any
+  try {
+    gwVerify = await gwFacilitator.verify(parsedPayment, gwRequirement)
+  } catch (verifyErr: any) {
+    console.error('Gateway verify error:', verifyErr)
+    return NextResponse.json({ error: 'Payment verification failed', details: verifyErr.message }, { status: 402 })
+  }
+
+  if (!gwVerify?.isValid) {
+    return NextResponse.json(
+      { error: 'Payment verification failed', details: gwVerify?.invalidReason || 'requirements not satisfied' },
+      { status: 402 }
+    )
+  }
+
+  const gwBudget = parseFloat(gwRequirement.amount) / 1_000_000
+  const gwAuthorization = (parsedPayment?.payload?.authorization || {}) as { from?: string; nonce?: string }
+  const gwPayer = gwVerify.payer || gwAuthorization.from
+  const gwNonce = gwAuthorization.nonce ? String(gwAuthorization.nonce) : ''
 
   const supabase = createAdminClient()
+
+  // Replay guard: same event type and unique index as the standard rail, so a
+  // signed authorization nonce can never fund two sessions on either rail.
+  if (gwNonce) {
+    const { data: priorUse } = await supabase
+      .from('audit_events')
+      .select('id')
+      .eq('event_type', 'agent_eip3009_auth_used')
+      .eq('details->>nonce', gwNonce)
+      .limit(1)
+
+    if (priorUse && priorUse.length > 0) {
+      return NextResponse.json({ error: 'This payment authorization has already been used' }, { status: 409 })
+    }
+  }
+
   const { data: session, error: sessionError } = await supabase
     .from('research_sessions')
-    .insert({ user_id: null, query, budget_usdc: budget, status: 'active', network: activeNetwork })
+    .insert({ user_id: null, query: gwQuery, budget_usdc: gwBudget, status: 'active', network: gwActiveNetwork })
     .select('id')
     .single()
 
@@ -291,15 +331,29 @@ export async function GET(request: NextRequest) {
     )
   }
 
+  if (gwNonce) {
+    const { error: guardError } = await supabase.from('audit_events').insert({
+      event_type: 'agent_eip3009_auth_used',
+      details: { nonce: gwNonce, payer: gwPayer, sessionId: session.id, network: gwActiveNetwork },
+    })
+    if (guardError) {
+      if ((guardError as any).code === '23505') {
+        await supabase.from('research_sessions').update({ status: 'failed' }).eq('id', session.id)
+        return NextResponse.json({ error: 'This payment authorization has already been used' }, { status: 409 })
+      }
+      console.error('Failed to record Gateway replay guard entry:', guardError)
+    }
+  }
+
   try {
     const agentResult = await runResearchAgent(
       session.id,
-      query,
-      budget,
-      payerAddress,
+      gwQuery,
+      gwBudget,
+      gwPayer,
       undefined,
       undefined,
-      activeNetwork
+      gwActiveNetwork
     )
 
     await supabase
@@ -307,23 +361,25 @@ export async function GET(request: NextRequest) {
       .update({ status: 'completed', result: agentResult })
       .eq('id', session.id)
 
-    const settlement = await server.processSettlement(
-      result.paymentPayload,
-      result.paymentRequirements,
-      result.declaredExtensions
-    )
+    let gwSettlement: any
+    try {
+      gwSettlement = await gwFacilitator.settle(parsedPayment, gwRequirement)
+    } catch (settleErr: any) {
+      console.error('Gateway settle error:', settleErr)
+      gwSettlement = { success: false, errorReason: settleErr.message }
+    }
 
-    if (!settlement.success) {
-      console.error('x402 settlement failed after serving research:', settlement.errorReason)
+    if (!gwSettlement?.success) {
+      console.error('x402 settlement failed after serving research:', gwSettlement?.errorReason)
       return NextResponse.json({
         answer: agentResult.answer,
         citationsUsed: agentResult.citationsUsed,
         purchasedSources: agentResult.purchasedSources,
-        settlementWarning: settlement.errorReason,
+        settlementWarning: gwSettlement?.errorReason || 'settlement failed',
       })
     }
 
-    if (activeNetwork === 'arc-mainnet') {
+    if (gwActiveNetwork === 'arc-mainnet') {
       import('@/lib/payments/gateway_disbursement')
         .then(({ autoDisburseGatewayBalance }) => {
           autoDisburseGatewayBalance('arc-mainnet').catch(disburseErr => {
@@ -335,14 +391,28 @@ export async function GET(request: NextRequest) {
         })
     }
 
+    const paymentResponseData = {
+      success: true,
+      transaction: gwSettlement.transaction,
+      network: gwNetwork,
+      amount: gwRequirement.amount,
+      payer: gwPayer,
+    }
+    const paymentResponseBase64 = Buffer.from(JSON.stringify(paymentResponseData)).toString('base64')
+
     return NextResponse.json(
       {
         answer: agentResult.answer,
         citationsUsed: agentResult.citationsUsed,
         purchasedSources: agentResult.purchasedSources,
-        transaction: settlement.transaction,
+        transaction: gwSettlement.transaction,
       },
-      { headers: settlement.headers }
+      {
+        headers: {
+          'PAYMENT-RESPONSE': paymentResponseBase64,
+          'X-PAYMENT-RESPONSE': paymentResponseBase64,
+        },
+      }
     )
   } catch (err: any) {
     try {
