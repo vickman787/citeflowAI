@@ -199,3 +199,22 @@ export async function autoDisburseGatewayBalance(network: string = 'arc-mainnet'
     return { success: false, message: err.message || 'Unknown error' }
   }
 }
+
+// Current USDC held in the treasury's Arc mainnet Gateway balance. Used by the
+// Gateway rail to wait for a settled payment to land before sweeping it on-chain.
+export async function getTreasuryGatewayBalance(): Promise<number> {
+  const treasuryAddress = getTreasuryAddress('arc-mainnet')
+  const res = await fetch('https://gateway-api.circle.com/v1/balances', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-ARC-PRIVATE-MAINNET-ENABLED': 'true',
+    },
+    body: JSON.stringify({ token: 'USDC', sources: [{ depositor: treasuryAddress, domain: 26 }] }),
+  })
+  const data = await res.json()
+  if (!res.ok) {
+    throw new Error(`Gateway balance fetch failed: ${data.message || res.statusText}`)
+  }
+  return parseFloat(data.balances?.[0]?.balance || '0')
+}

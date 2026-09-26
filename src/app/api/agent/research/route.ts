@@ -346,6 +346,48 @@ export async function GET(request: NextRequest) {
   }
 
   try {
+    // Settle first so the buyer's funds are committed to the treasury before any
+    // creator payout or refund runs. A session that never settles never pays out.
+    let gwSettlement: any
+    try {
+      gwSettlement = await gwFacilitator.settle(parsedPayment, gwRequirement)
+    } catch (settleErr: any) {
+      console.error('Gateway settle error:', settleErr)
+      gwSettlement = { success: false, errorReason: settleErr.message }
+    }
+
+    if (!gwSettlement?.success) {
+      await supabase.from('research_sessions').update({ status: 'failed' }).eq('id', session.id)
+      return NextResponse.json(
+        { error: 'Payment settlement failed', details: gwSettlement?.errorReason || 'settlement failed' },
+        { status: 402 }
+      )
+    }
+
+    // Move the buyer's funds from the treasury's Gateway balance onto the chain,
+    // so creator payouts and the unspent refund have on-chain float to draw from.
+    // The Gateway batch can take a moment to credit the balance, so poll briefly.
+    if (gwActiveNetwork === 'arc-mainnet') {
+      try {
+        const { autoDisburseGatewayBalance, getTreasuryGatewayBalance } = await import(
+          '@/lib/payments/gateway_disbursement'
+        )
+        const expected = parseFloat(gwRequirement.amount) / 1_000_000
+        const deadline = Date.now() + 8000
+        while (Date.now() < deadline) {
+          const bal = await getTreasuryGatewayBalance()
+          if (bal + 0.0005 >= expected) break
+          await new Promise((resolve) => setTimeout(resolve, 1500))
+        }
+        const sweep = await autoDisburseGatewayBalance('arc-mainnet')
+        if (!sweep.success) {
+          console.warn('Pre-research Gateway sweep did not complete:', sweep.message)
+        }
+      } catch (sweepErr: any) {
+        console.error('Pre-research Gateway sweep error:', sweepErr)
+      }
+    }
+
     const agentResult = await runResearchAgent(
       session.id,
       gwQuery,
@@ -360,36 +402,6 @@ export async function GET(request: NextRequest) {
       .from('research_sessions')
       .update({ status: 'completed', result: agentResult })
       .eq('id', session.id)
-
-    let gwSettlement: any
-    try {
-      gwSettlement = await gwFacilitator.settle(parsedPayment, gwRequirement)
-    } catch (settleErr: any) {
-      console.error('Gateway settle error:', settleErr)
-      gwSettlement = { success: false, errorReason: settleErr.message }
-    }
-
-    if (!gwSettlement?.success) {
-      console.error('x402 settlement failed after serving research:', gwSettlement?.errorReason)
-      return NextResponse.json({
-        answer: agentResult.answer,
-        citationsUsed: agentResult.citationsUsed,
-        purchasedSources: agentResult.purchasedSources,
-        settlementWarning: gwSettlement?.errorReason || 'settlement failed',
-      })
-    }
-
-    if (gwActiveNetwork === 'arc-mainnet') {
-      import('@/lib/payments/gateway_disbursement')
-        .then(({ autoDisburseGatewayBalance }) => {
-          autoDisburseGatewayBalance('arc-mainnet').catch(disburseErr => {
-            console.error('Automated Gateway post settlement disbursement error:', disburseErr)
-          })
-        })
-        .catch(importErr => {
-          console.error('Failed to load gateway_disbursement module:', importErr)
-        })
-    }
 
     const paymentResponseData = {
       success: true,
