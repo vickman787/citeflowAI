@@ -120,6 +120,59 @@ function selectRelevantChunks(
   return ranked.map(c => c.chunk_text).join('\n[...]\n')
 }
 
+// Attempt a refund, recording it first so it is never lost. If the inline
+// transfer fails (typically insufficient on-chain float, because Circle Gateway
+// settles asynchronously), the row stays pending and the scheduled disbursement
+// endpoint retries it once the funds have been swept on-chain.
+async function recordAndAttemptRefund(
+  supabase: any,
+  sessionId: string,
+  walletAddress: string,
+  amount: number,
+  network: string,
+  onProgress?: (msg: string) => void
+): Promise<void> {
+  const amountStr = amount.toFixed(2)
+  let pendingId: string | undefined
+
+  try {
+    const { data } = await supabase
+      .from('pending_refunds')
+      .insert({
+        session_id: sessionId,
+        payer_address: walletAddress,
+        amount_usdc: amount,
+        network,
+        status: 'pending',
+      })
+      .select('id')
+      .single()
+    pendingId = data?.id
+  } catch (e: any) {
+    console.error('Failed to record pending refund:', e)
+  }
+
+  try {
+    const txId = await executeGatewayTransfer(walletAddress, amountStr, network)
+    if (pendingId) {
+      await supabase
+        .from('pending_refunds')
+        .update({ status: 'paid', paid_transaction_id: txId })
+        .eq('id', pendingId)
+    }
+    if (onProgress) onProgress(`Refunded $${amountStr} to your wallet.`)
+  } catch (err: any) {
+    console.error('Refund transfer failed, queued for retry:', err)
+    if (pendingId) {
+      await supabase
+        .from('pending_refunds')
+        .update({ attempts: 1, last_error: err.message })
+        .eq('id', pendingId)
+    }
+    if (onProgress) onProgress(`Refund queued for retry (${err.message})`)
+  }
+}
+
 export async function runResearchAgent(
   sessionId: string,
   query: string,
@@ -132,10 +185,9 @@ export async function runResearchAgent(
   let maxBudget = initialBudget;
   let totalSpentOnSources = 0;
   const isMainnet = network === 'arc-mainnet';
-  
-  try {
   const supabase = createAdminClient()
 
+  try {
   if (onProgress) onProgress(`Agent 1 initialized on ${isMainnet ? 'Arc Mainnet' : 'Arc Testnet'}. Querying network corpus...`)
 
   // 1. Fetch available registered sources
@@ -231,12 +283,7 @@ export async function runResearchAgent(
     }
 
     if (walletAddress && initialBudget >= 0.05) {
-      try {
-        await executeGatewayTransfer(walletAddress, initialBudget.toFixed(2), network);
-        if (onProgress) onProgress(`Refunded $${initialBudget.toFixed(2)} to your wallet.`);
-      } catch (refundErr: any) {
-        console.error("Zero sources refund failed:", refundErr);
-      }
+      await recordAndAttemptRefund(supabase, sessionId, walletAddress, initialBudget, network, onProgress)
     }
 
     return {
@@ -377,13 +424,7 @@ export async function runResearchAgent(
     
     if (unspentBudget >= 0.01) {
       if (onProgress) onProgress(`Calculating budget... Unspent budget is $${unspentBudget.toFixed(2)}. Initiating refund...`)
-      try {
-        await executeGatewayTransfer(walletAddress, unspentBudget.toFixed(2), network);
-        if (onProgress) onProgress(`Refunded $${unspentBudget.toFixed(2)} to your wallet.`)
-      } catch (err: any) {
-        console.error("Refund failed:", err);
-        if (onProgress) onProgress(`Warning: Refund transfer failed (${err.message})`)
-      }
+      await recordAndAttemptRefund(supabase, sessionId, walletAddress, unspentBudget, network, onProgress)
     } else if (unspentBudget > 0) {
       if (onProgress) onProgress(`Unspent budget is $${unspentBudget.toFixed(4)} (below $0.01 minimum threshold). Retained by Treasury.`)
     }
@@ -399,12 +440,7 @@ export async function runResearchAgent(
     // --- Crash / Failure Full Refund Mechanism ---
     if (walletAddress) {
       if (onProgress) onProgress(`Research execution failed. Initiating full refund of $${initialBudget.toFixed(2)}...`)
-      try {
-        await executeGatewayTransfer(walletAddress, initialBudget.toFixed(2), network);
-        if (onProgress) onProgress(`Refunded $${initialBudget.toFixed(2)} to your wallet.`)
-      } catch (refundErr: any) {
-        console.error("Crash Refund failed:", refundErr);
-      }
+      await recordAndAttemptRefund(supabase, sessionId, walletAddress, initialBudget, network, onProgress)
     }
     throw err;
   }

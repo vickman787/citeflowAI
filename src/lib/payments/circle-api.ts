@@ -72,12 +72,17 @@ export async function executeGatewayTransfer(
   // Resolve the USDC token ID live from the treasury wallet on either network
   const tokenId = await resolveUsdcTokenId(apiKey, walletId)
 
+  // Stable across retries: if an attempt is actually submitted but the response
+  // is lost, Circle deduplicates the retry instead of sending a second transfer.
+  // A fresh key per attempt was causing duplicate creator payouts.
+  const idempotencyKey = crypto.randomUUID()
+
   let lastError: any = null
   for (let attempt = 1; attempt <= 3; attempt++) {
     try {
       const ciphertext = await generateDynamicCiphertext(rawSecret, apiKey)
       const payload: any = {
-        idempotencyKey: crypto.randomUUID(),
+        idempotencyKey,
         entitySecretCiphertext: ciphertext,
         amounts: [amountUsdc.toString()],
         destinationAddress: destinationAddress,
