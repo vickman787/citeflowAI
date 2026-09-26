@@ -1,0 +1,8 @@
+{
+  "crons": [
+    {
+      "path": "/api/treasury/disburse",
+      "schedule": "0 0 * * *"
+    }
+  ]
+}
