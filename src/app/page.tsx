@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { cookies } from 'next/headers'
-import { createClient } from '@/utils/supabase/server'
+import { createAdminClient } from '@/utils/supabase/admin'
 import { getNetworkStats } from '@/lib/stats'
 import LiveLedger from '@/components/LiveLedger'
 import type { NetworkId } from '@/lib/network'
@@ -9,7 +9,7 @@ export default async function LandingPage() {
   const cookieStore = await cookies()
   const networkCookie = cookieStore.get('citeflow_network')?.value as NetworkId | undefined
   const isMainnet = networkCookie === 'arc-mainnet'
-  const supabase = await createClient()
+  const supabase = createAdminClient()
 
   let recentPayments: any[] = []
   let totalPaidCitations = 0
@@ -19,7 +19,6 @@ export default async function LandingPage() {
       supabase
         .from('payment_authorizations')
         .select(`
-          authorization_id,
           amount_usdc,
           created_at,
           sources (
@@ -43,7 +42,6 @@ export default async function LandingPage() {
       supabase
         .from('payment_authorizations')
         .select(`
-          authorization_id,
           amount_usdc,
           created_at,
           sources (

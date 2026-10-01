@@ -1,7 +1,7 @@
 import { createAdminClient } from '@/utils/supabase/admin'
 import { authorizePayment } from '../payments/treasury'
-import { executeGatewayTransfer } from '../payments/circle-api'
-import { withdrawGatewayTo } from '../payments/gateway_disbursement'
+import { settleCreatorLicense } from '../payments/license'
+import { queueRefund, claimRefund, processClaimedRefund } from '../payments/refunds'
 import { embedQuery, cosineSimilarity, parseVector } from './embeddings'
 import { z } from 'zod'
 
@@ -59,7 +59,36 @@ async function callOpenAIJSON(prompt: string, schema: any) {
 }
 
 async function callLLM(prompt: string, schema: any, onProgress?: (msg: string) => void) {
-  return await callOpenAIJSON(prompt, schema)
+  const errors: string[] = []
+  if (process.env.OPENAI_API_KEY) {
+    try { return await callOpenAIJSON(prompt, schema) }
+    catch (error: any) { errors.push(`OpenAI: ${error.message}`); onProgress?.('Research provider unavailable; trying fallback...') }
+  }
+  if (process.env.GEMINI_API_KEY) {
+    try {
+      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${process.env.GEMINI_RESEARCH_MODEL || 'gemini-2.5-flash'}:generateContent`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': process.env.GEMINI_API_KEY },
+        body: JSON.stringify({ contents: [{ role: 'user', parts: [{ text: prompt }] }], generationConfig: { responseMimeType: 'application/json' } }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error?.message || String(res.status))
+      return schema.parse(JSON.parse(data.candidates?.[0]?.content?.parts?.[0]?.text || ''))
+    } catch (error: any) { errors.push(`Gemini: ${error.message}`); onProgress?.('Research fallback unavailable; trying secondary provider...') }
+  }
+  if (process.env.OPENROUTER_API_KEY) {
+    try {
+      const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+        method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}` },
+        body: JSON.stringify({ model: process.env.OPENROUTER_RESEARCH_MODEL || 'openai/gpt-4o-mini',
+          messages: [{ role: 'system', content: 'Return only JSON.' }, { role: 'user', content: prompt }],
+          response_format: { type: 'json_object' } }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error?.message || String(res.status))
+      return schema.parse(JSON.parse(data.choices?.[0]?.message?.content || ''))
+    } catch (error: any) { errors.push(`OpenRouter: ${error.message}`) }
+  }
+  throw new Error(`All research providers failed or are unconfigured: ${errors.join('; ')}`)
 }
 
 async function verifyCitationGrounding(
@@ -126,66 +155,20 @@ function selectRelevantChunks(
 // settles asynchronously), the row stays pending and the scheduled disbursement
 // endpoint retries it once the funds have been swept on-chain.
 async function recordAndAttemptRefund(
-  supabase: any,
   sessionId: string,
   walletAddress: string,
   amount: number,
   network: string,
   onProgress?: (msg: string) => void
 ): Promise<void> {
-  const amountStr = amount.toFixed(2)
-
-  // `walletAddress` is the wallet that signed the payment, so the refund follows
-  // that specific user. Never refund to an address that is not the payer.
-  const refundTarget = walletAddress
-
-  let pendingId: string | undefined
-
-  try {
-    const { data } = await supabase
-      .from('pending_refunds')
-      .insert({
-        session_id: sessionId,
-        payer_address: refundTarget,
-        amount_usdc: amount,
-        network,
-        status: 'pending',
-      })
-      .select('id')
-      .single()
-    pendingId = data?.id
-  } catch (e: any) {
-    console.error('Failed to record pending refund:', e)
-  }
-
-  try {
-    let txId: string
-    if (network === 'arc-mainnet') {
-      // Refund from the Gateway balance the buyer's payment settled into, so it
-      // does not depend on on-chain float. Falls back to an on-chain transfer.
-      const gw = await withdrawGatewayTo(refundTarget, amountStr, network)
-      txId = gw.success
-        ? gw.txHash || 'gateway'
-        : await executeGatewayTransfer(refundTarget, amountStr, network)
-    } else {
-      txId = await executeGatewayTransfer(refundTarget, amountStr, network)
-    }
-    if (pendingId) {
-      await supabase
-        .from('pending_refunds')
-        .update({ status: 'paid', paid_transaction_id: txId })
-        .eq('id', pendingId)
-    }
-    if (onProgress) onProgress(`Refunded $${amountStr} to your wallet.`)
-  } catch (err: any) {
-    console.error('Refund transfer failed, queued for retry:', err)
-    if (pendingId) {
-      await supabase
-        .from('pending_refunds')
-        .update({ attempts: 1, last_error: err.message })
-        .eq('id', pendingId)
-    }
-    if (onProgress) onProgress(`Refund queued for retry (${err.message})`)
+  const refund = await queueRefund(sessionId, walletAddress, amount, network as 'arc-testnet' | 'arc-mainnet')
+  if (refund.status === 'paid') { onProgress?.('Refund already confirmed.'); return }
+  const claimed = await claimRefund(refund.id)
+  if (claimed) {
+    const outcome = await processClaimedRefund(claimed)
+    onProgress?.(outcome === 'paid' ? 'Refund confirmed on-chain.' : 'Refund queued or submitted; awaiting on-chain confirmation.')
+  } else {
+    onProgress?.('Refund queued for processing; it is not paid yet.')
   }
 }
 
@@ -198,8 +181,6 @@ export async function runResearchAgent(
   cookieHeader?: string,
   network: string = 'arc-testnet'
 ) {
-  let maxBudget = initialBudget;
-  let totalSpentOnSources = 0;
   const isMainnet = network === 'arc-mainnet';
   const supabase = createAdminClient()
 
@@ -216,7 +197,7 @@ export async function runResearchAgent(
 
   // Hard network isolation: a source is citable only on the network it was
   // registered on. Testnet sources never surface on mainnet, and vice versa.
-  // Re-registering a source on mainnet re-tags it as a mainnet source.
+  // Each network owns a separate source row and payment history.
   const activeNetworkId = isMainnet ? 'arc-mainnet' : 'arc-testnet'
   const sources = allSources.filter(s => (s.network || 'arc-testnet') === activeNetworkId)
 
@@ -231,6 +212,8 @@ export async function runResearchAgent(
   }
 
   const purchasedSources: any[] = []
+  let evaluationFailures = 0
+  let paymentFailures = 0
   const relevantSources: any[] = []
   let allocatedBudget = 0;
   
@@ -260,7 +243,8 @@ export async function runResearchAgent(
     try {
       evaluation = await callLLM(evalPrompt, evaluationSchema, onProgress)
     } catch (e) {
-      console.warn(`Evaluation failed for source ${source.id}`)
+      evaluationFailures++
+      console.warn(`Evaluation failed for source ${source.id}`, e)
       continue
     }
 
@@ -289,7 +273,13 @@ export async function runResearchAgent(
     }
   }
 
-  // If no registered sources are available or deemed relevant, prevent hallucinations and issue immediate refund
+  // Partial provider outages must not silently narrow the corpus or produce a
+  // misleading "no relevant sources" answer.
+  if (evaluationFailures > 0) {
+    throw new Error(`Research providers could not evaluate ${evaluationFailures} source(s); query aborted.`)
+  }
+
+  // If no registered sources are available or deemed relevant, prevent hallucinations and queue a refund
   if (relevantSources.length === 0) {
     if (onProgress) {
       onProgress(sources.length === 0
@@ -299,13 +289,13 @@ export async function runResearchAgent(
     }
 
     if (walletAddress && initialBudget >= 0.05) {
-      await recordAndAttemptRefund(supabase, sessionId, walletAddress, initialBudget, network, onProgress)
+      await recordAndAttemptRefund(sessionId, walletAddress, initialBudget, network, onProgress)
     }
 
     return {
       answer: sources.length === 0
-        ? 'No sources are currently registered in the corpus on Arc Mainnet. CiteFlow AI only synthesizes answers strictly grounded in verified registered sources to guarantee factual attribution and creator compensation. Your full budget has been refunded.'
-        : 'No registered sources in the corpus contained information relevant to your query. CiteFlow AI does not generate ungrounded answers. Your full budget has been refunded.',
+        ? `No sources are currently registered on ${isMainnet ? 'Arc Mainnet' : 'Arc Testnet'}. A refund has been queued; check its on-chain status.`
+        : 'No registered sources in the corpus contained information relevant to your query. A refund has been queued; check its on-chain status.',
       citationsUsed: [],
       purchasedSources: []
     }
@@ -387,9 +377,13 @@ export async function runResearchAgent(
       }
     } else {
       if (onProgress) {
-        onProgress(`Citation rejected (${verification.groundingScore.toFixed(2)}): ${source.title}. Insufficient grounding; payment withheld and budget refunded.`)
+        onProgress(`Citation rejected (${verification.groundingScore.toFixed(2)}): ${source.title}. Insufficient grounding; creator payment withheld.`)
       }
     }
+  }
+
+  if (verifiedSources.length === 0 || verifiedSources.length !== new Set(finalOutput.citationsUsed).size) {
+    throw new Error('Grounding audit rejected one or more cited sources. The answer was withheld and unused funds will be refunded.')
   }
 
   // 5. Execute Payments ONLY for Verified Citations
@@ -399,50 +393,45 @@ export async function runResearchAgent(
 
   for (const source of verifiedSources) {
     try {
-      const { payload } = await authorizePayment(sessionId, source.id, parseFloat(source.price_usdc), 'recipient_placeholder', activeNetworkId)
-      
-      const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
-      const licenseRes = await fetch(`${baseUrl}/api/sources/${source.id}/license`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-network': network,
-          ...(cookieHeader ? { 'Cookie': cookieHeader } : {})
-        },
-        body: JSON.stringify({ ...payload, network })
-      })
-
-      if (licenseRes.ok) {
-        const licenseData = await licenseRes.json()
-        purchasedSources.push({
-          id: source.id,
-          title: source.title,
-          url: source.url,
-          content: source.content,
-          receipt: licenseData.receipt
-        })
-        const price = parseFloat(source.price_usdc);
-        maxBudget -= price;
-        totalSpentOnSources += price;
-        if (onProgress) onProgress(`Payment Settled. Gateway Batch ID: ${licenseData.receipt.gatewaySettlementId}`)
+      if (Number(source.price_usdc) === 0) {
+        purchasedSources.push({ id: source.id, title: source.title, url: source.url,
+          content: source.content, paymentStatus: 'free', receipt: null })
+        continue
       }
+      const { authorizationId } = await authorizePayment(sessionId, source.id, parseFloat(source.price_usdc), 'recipient_placeholder', activeNetworkId)
+      const license = await settleCreatorLicense(authorizationId, source.id, activeNetworkId)
+      purchasedSources.push({
+        id: source.id, title: source.title, url: source.url, content: source.content,
+        paymentStatus: license.status,
+        receipt: { transactionId: license.transactionId, txHash: license.txHash || null }
+      })
+      if (onProgress) onProgress(license.status === 'confirmed'
+        ? `Creator payout confirmed on-chain: ${license.txHash}`
+        : `Creator payout submitted (${license.transactionId}); confirmation pending.`)
     } catch (e: any) {
+      paymentFailures++
       console.error(`Failed to purchase source ${source.id}:`, e.message)
       if (onProgress) onProgress(`Payment execution failed for ${source.title}.`)
     }
+  }
+  if (paymentFailures > 0) {
+    throw new Error(`${paymentFailures} creator payout(s) failed or require reconciliation. The answer was withheld.`)
   }
 
   // --- Backend Refund Mechanism ---
   if (walletAddress) {
     // Researcher only pays for the actual sources cited. Platform take rate is already
     // factored into each citation payout in the license endpoint (80% creator / 20% platform).
-    const unspentBudget = Math.max(0, initialBudget - totalSpentOnSources);
+    const { data: allAuthorizations, error: authReadError } = await supabase
+      .from('payment_authorizations').select('amount_usdc, status').eq('session_id', sessionId)
+    if (authReadError) throw new Error('Could not audit reserved creator payouts before refund')
+    const reserved = (allAuthorizations || []).filter((a: any) => a.status !== 'failed')
+      .reduce((sum: number, a: any) => sum + Number(a.amount_usdc), 0)
+    const unspentBudget = Math.max(0, initialBudget - reserved);
     
-    if (unspentBudget >= 0.01) {
-      if (onProgress) onProgress(`Calculating budget... Unspent budget is $${unspentBudget.toFixed(2)}. Initiating refund...`)
-      await recordAndAttemptRefund(supabase, sessionId, walletAddress, unspentBudget, network, onProgress)
-    } else if (unspentBudget > 0) {
-      if (onProgress) onProgress(`Unspent budget is $${unspentBudget.toFixed(4)} (below $0.01 minimum threshold). Retained by Treasury.`)
+    if (unspentBudget >= 0.000001) {
+      if (onProgress) onProgress(`Unspent budget is $${unspentBudget.toFixed(6)}. Queuing refund...`)
+      await recordAndAttemptRefund(sessionId, walletAddress, unspentBudget, network, onProgress)
     }
   }
 
@@ -453,10 +442,21 @@ export async function runResearchAgent(
   }
   
   } catch (err: any) {
-    // --- Crash / Failure Full Refund Mechanism ---
+    // Reserve every authorization that may already have triggered a payout.
+    // A crash after Circle submission must never result in a full refund too.
     if (walletAddress) {
-      if (onProgress) onProgress(`Research execution failed. Initiating full refund of $${initialBudget.toFixed(2)}...`)
-      await recordAndAttemptRefund(supabase, sessionId, walletAddress, initialBudget, network, onProgress)
+      const { data: auths, error: authReadError } = await supabase.from('payment_authorizations')
+        .select('amount_usdc, status').eq('session_id', sessionId)
+      if (authReadError) {
+        throw new Error('Research failed; payout state could not be verified, so refund is withheld for reconciliation')
+      }
+      const reserved = (auths || []).filter((a: any) => !['failed'].includes(a.status))
+        .reduce((sum: number, a: any) => sum + Number(a.amount_usdc), 0)
+      const refundable = Math.max(0, initialBudget - reserved)
+      if (refundable >= 0.000001) {
+        onProgress?.(`Research failed. Queuing ${refundable.toFixed(6)} USDC refund; pending payouts remain reserved.`)
+        await recordAndAttemptRefund(sessionId, walletAddress, refundable, network, onProgress)
+      }
     }
     throw err;
   }

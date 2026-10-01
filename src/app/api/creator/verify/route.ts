@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/utils/supabase/server'
+import { createAdminClient } from '@/utils/supabase/admin'
 import { cookies } from 'next/headers'
 import { generateVerificationCode, verifyIdentity, saveVerifiedIdentity } from '@/lib/verification/verify'
+import type { NetworkId } from '@/lib/network'
 import { z } from 'zod'
 
 const verifySchema = z.object({
@@ -23,9 +25,9 @@ async function getCreatorId(supabase: Awaited<ReturnType<typeof createClient>>) 
   return { creatorId: creatorProfile.id as string }
 }
 
-async function getNetwork(): Promise<string> {
+async function getNetwork(): Promise<NetworkId> {
   const cookieStore = await cookies()
-  return cookieStore.get('citeflow_network')?.value || 'arc-testnet'
+  return cookieStore.get('citeflow_network')?.value === 'arc-mainnet' ? 'arc-mainnet' : 'arc-testnet'
 }
 
 export async function GET() {
@@ -44,7 +46,7 @@ export async function GET() {
       .order('verified_at', { ascending: false })
 
     return NextResponse.json({
-      verificationCode: generateVerificationCode(result.creatorId),
+      verificationCode: generateVerificationCode(result.creatorId, network),
       identities: identities || [],
     })
   } catch (error: any) {
@@ -68,10 +70,10 @@ export async function POST(request: NextRequest) {
     }
 
     const { platform, proofUrl } = parsed.data
-    const code = generateVerificationCode(result.creatorId)
+    const code = generateVerificationCode(result.creatorId, network)
 
-    const verified = await verifyIdentity(platform, proofUrl, result.creatorId)
-    await saveVerifiedIdentity(supabase, result.creatorId, verified, code, network)
+    const verified = await verifyIdentity(platform, proofUrl, result.creatorId, network)
+    await saveVerifiedIdentity(createAdminClient(), result.creatorId, verified, code, network)
 
     return NextResponse.json({ success: true, platform: verified.platform, identifier: verified.identifier })
   } catch (error: any) {

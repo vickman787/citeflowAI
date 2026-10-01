@@ -2,6 +2,8 @@ import crypto from 'crypto'
 import { pad, parseUnits, maxUint256 } from 'viem'
 import { generateDynamicCiphertext } from './circle-api'
 import { getCircleCredentials, getTreasuryAddress } from '@/lib/circle-credentials'
+import { getCircleTransaction } from './circle-api'
+import { createAdminClient } from '@/utils/supabase/admin'
 
 const MAINNET_GATEWAY_WALLET = '0x77777777Dcc4d5A8B6E418Fd04D8997ef11000eE'
 const MAINNET_GATEWAY_MINTER = '0x2222222d7164433c4C09B0b0D809a9b52C04C205'
@@ -15,6 +17,7 @@ export async function autoDisburseGatewayBalance(network: string = 'arc-mainnet'
   txHash?: string
   amount?: string
 }> {
+  let sweepId: string | null = null
   try {
     const isMainnet = network === 'arc-mainnet'
     if (!isMainnet) {
@@ -49,6 +52,7 @@ export async function autoDisburseGatewayBalance(network: string = 'arc-mainnet'
     })
 
     const balData = await balRes.json()
+    if (!balRes.ok) return { success: false, message: `Gateway balance request failed: ${balData.message || balRes.status}` }
     const availableStr = balData.balances?.[0]?.balance || '0'
     const available = parseFloat(availableStr)
 
@@ -65,6 +69,15 @@ export async function autoDisburseGatewayBalance(network: string = 'arc-mainnet'
     if (parseFloat(netWithdrawAmount) <= 0) {
       return { success: false, message: 'Net withdraw amount is zero or negative' }
     }
+
+    const db = createAdminClient()
+    const { data: sweep, error: sweepError } = await db.from('gateway_sweeps')
+      .insert({ network: 'arc-mainnet', amount_usdc: netWithdrawAmount, status: 'processing' })
+      .select('id').single()
+    if (sweepError || !sweep) {
+      return { success: false, message: `Gateway sweep already active or ledger unavailable: ${sweepError?.message || 'unknown'}` }
+    }
+    sweepId = sweep.id
 
     const addressToBytes32 = (addr: string) => pad(addr.toLowerCase() as `0x${string}`, { size: 32 })
     const valueAtomic = parseUnits(netWithdrawAmount, 6)
@@ -142,11 +155,13 @@ export async function autoDisburseGatewayBalance(network: string = 'arc-mainnet'
 
     const signData = await signRes.json()
     if (!signRes.ok) {
+      await db.from('gateway_sweeps').update({ status: 'failed', last_error: signData.message }).eq('id', sweepId)
       return { success: false, message: `Circle sign API failed: ${signData.message}` }
     }
 
     const signature = signData.data?.signature
     if (!signature) {
+      await db.from('gateway_sweeps').update({ status: 'failed', last_error: 'No Circle signature' }).eq('id', sweepId)
       return { success: false, message: 'No signature returned from Circle API' }
     }
 
@@ -161,9 +176,12 @@ export async function autoDisburseGatewayBalance(network: string = 'arc-mainnet'
     })
 
     const transferResult = await transferRes.json()
-    if (!transferResult.attestation || !transferResult.signature) {
+    if (!transferRes.ok || !transferResult.attestation || !transferResult.signature) {
+      await db.from('gateway_sweeps').update({ last_error: transferResult.message || 'No Gateway attestation' }).eq('id', sweepId)
       return { success: false, message: `Gateway transfer error: ${transferResult.message || 'No attestation'}` }
     }
+    await db.from('gateway_sweeps').update({ attestation: transferResult.attestation,
+      gateway_signature: transferResult.signature, updated_at: new Date().toISOString() }).eq('id', sweepId)
 
     // 4. Submit gatewayMint transaction to Arc Mainnet
     const mintCiphertext = await generateDynamicCiphertext(rawSecret, apiKey)
@@ -186,15 +204,29 @@ export async function autoDisburseGatewayBalance(network: string = 'arc-mainnet'
 
     const mintData = await mintRes.json()
     const txId = mintData.data?.id
-    console.log(`Automated Gateway disbursement initiated! Tx ID: ${txId}, Amount: ${netWithdrawAmount} USDC`)
+    if (!mintRes.ok || !txId) {
+      await db.from('gateway_sweeps').update({ last_error: mintData.message || 'Mint submission returned no ID' }).eq('id', sweepId)
+      return { success: false, message: `Gateway mint submission failed: ${mintData.message || 'no transaction ID'}` }
+    }
+    await db.from('gateway_sweeps').update({ status: 'submitted', mint_transaction_id: txId,
+      updated_at: new Date().toISOString() }).eq('id', sweepId)
+    const mint = await getCircleTransaction(txId, 'arc-mainnet')
+    if (mint.state !== 'COMPLETE' || !mint.txHash) {
+      return { success: false, message: `Gateway mint ${mint.state}; transaction ${txId} requires reconciliation`, txHash: txId, amount: netWithdrawAmount }
+    }
+    await db.from('gateway_sweeps').update({ status: 'confirmed', transaction_hash: mint.txHash,
+      updated_at: new Date().toISOString() }).eq('id', sweepId)
 
     return {
       success: true,
-      message: `Disbursement of ${netWithdrawAmount} USDC initiated to ${treasuryAddress}`,
+      message: `Disbursement of ${netWithdrawAmount} USDC confirmed to ${treasuryAddress}`,
       amount: netWithdrawAmount,
-      txHash: txId
+      txHash: mint.txHash
     }
   } catch (err: any) {
+    if (sweepId) {
+      await createAdminClient().from('gateway_sweeps').update({ last_error: err.message || 'Unknown error' }).eq('id', sweepId)
+    }
     console.error('autoDisburseGatewayBalance exception:', err)
     return { success: false, message: err.message || 'Unknown error' }
   }
@@ -335,7 +367,7 @@ export async function withdrawGatewayTo(
       body: JSON.stringify([{ burnIntent, signature: signData.data.signature }]),
     })
     const transferResult = await transferRes.json()
-    if (!transferResult.attestation || !transferResult.signature) {
+    if (!transferRes.ok || !transferResult.attestation || !transferResult.signature) {
       return { success: false, message: `Gateway transfer failed: ${transferResult.message || 'no attestation'}` }
     }
 
@@ -354,15 +386,15 @@ export async function withdrawGatewayTo(
       }),
     })
     const mintData = await mintRes.json()
-    if (!mintRes.ok) {
+    if (!mintRes.ok || !mintData.data?.id) {
       return { success: false, message: `gatewayMint failed: ${mintData.message || 'unknown error'}` }
     }
 
-    return {
-      success: true,
-      message: `Gateway refund of ${amount} USDC sent to ${destination}`,
-      txHash: mintData.data?.id,
+    const mint = await getCircleTransaction(mintData.data.id, 'arc-mainnet')
+    if (mint.state !== 'COMPLETE' || !mint.txHash) {
+      return { success: false, message: `Gateway withdrawal ${mint.state}; transaction ${mintData.data.id} requires reconciliation`, txHash: mintData.data.id }
     }
+    return { success: true, message: `Gateway withdrawal confirmed to ${destination}`, txHash: mint.txHash }
   } catch (err: any) {
     return { success: false, message: err.message || 'Gateway withdrawal failed' }
   }

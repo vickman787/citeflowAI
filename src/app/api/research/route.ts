@@ -5,10 +5,12 @@ import { createClient } from '@/utils/supabase/server'
 import { initiateUserControlledWalletsClient } from '@circle-fin/user-controlled-wallets'
 import { getCircleCredentials, getTreasuryAddress } from '@/lib/circle-credentials'
 import { z } from 'zod'
+import { NETWORKS } from '@/lib/network'
+import { isArcUsdcToken } from '@/lib/payments/usdc-token'
 
 const researchRequestSchema = z.object({
   query: z.string().min(5),
-  maxBudget: z.number().min(0).max(100),
+  maxBudget: z.number().min(0.01).max(100),
   challengeId: z.string().min(1),
   userToken: z.string().min(1),
   network: z.string().optional()
@@ -49,6 +51,16 @@ async function verifyFundingPayment(userToken: string, challengeId: string, maxB
   if (DEAD_TX_STATES.includes(tx.state)) {
     throw new Error(`Funding transaction is in state ${tx.state}`)
   }
+  if (tx.state !== 'COMPLETE' || !tx.txHash) {
+    throw new Error(`Funding transaction is ${tx.state}; wait for on-chain confirmation`)
+  }
+  if (tx.blockchain !== NETWORKS[network].circleChain || !tx.tokenId) {
+    throw new Error('Funding transaction network or asset is missing/mismatched')
+  }
+  const tokenRes = await circleClient.getToken({ id: tx.tokenId })
+  if (!isArcUsdcToken(tokenRes.data?.token, network)) {
+    throw new Error('Funding transaction did not transfer Arc USDC on the selected network')
+  }
 
   if (!tx.destinationAddress || tx.destinationAddress.toLowerCase() !== treasuryAddress.toLowerCase()) {
     throw new Error('Funding transaction was not sent to the agent treasury')
@@ -82,6 +94,9 @@ export async function POST(request: NextRequest) {
     const { query, maxBudget, challengeId, userToken, network: bodyNetwork } = parsed.data
     const networkHeader = request.headers.get('x-network')
     const activeNetwork = bodyNetwork || networkHeader || 'arc-testnet'
+    if (!['arc-mainnet', 'arc-testnet'].includes(activeNetwork)) {
+      return NextResponse.json({ error: 'Invalid network' }, { status: 400 })
+    }
     const isMainnet = activeNetwork === 'arc-mainnet'
 
     // Verify the upfront payment with Circle before doing any work
@@ -117,6 +132,9 @@ export async function POST(request: NextRequest) {
         .single()
       refundAddress = profile?.wallet_address || undefined
     }
+    if (!refundAddress || !/^0x[0-9a-f]{40}$/i.test(refundAddress)) {
+      return NextResponse.json({ error: 'Confirmed payment has no verified refund address; contact support before retrying' }, { status: 422 })
+    }
 
     // 1. Create a Research Session owned by the authenticated user
     const { data: session, error: sessionError } = await supabase
@@ -136,7 +154,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to create research session', details: sessionError?.message || "Unknown DB Error" }, { status: 500 })
     }
 
-    await supabase.from('audit_events').insert({
+    const { error: guardError } = await supabase.from('audit_events').insert({
       event_type: 'funding_tx_used',
       details: {
         transactionId: funding.transactionId,
@@ -145,6 +163,10 @@ export async function POST(request: NextRequest) {
         amount: maxBudget
       }
     })
+    if (guardError) {
+      await supabase.from('research_sessions').update({ status: 'failed' }).eq('id', session.id)
+      return NextResponse.json({ error: 'Funding transaction already used or replay guard unavailable' }, { status: guardError.code === '23505' ? 409 : 500 })
+    }
 
     const stream = new ReadableStream({
       async start(controller) {
@@ -174,6 +196,7 @@ export async function POST(request: NextRequest) {
           pushUpdate('done', { result, sessionId: session.id })
           controller.close()
         } catch (error: any) {
+          await supabase.from('research_sessions').update({ status: 'failed' }).eq('id', session.id)
           pushUpdate('error', error.message)
           controller.close()
         }

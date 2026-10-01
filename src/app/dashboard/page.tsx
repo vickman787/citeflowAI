@@ -2,6 +2,7 @@ import { createClient } from '@/utils/supabase/server'
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
+import { createAdminClient } from '@/utils/supabase/admin'
 
 import CopyButton from '@/components/CopyButton'
 import VerifyIdentityPanel from '@/components/VerifyIdentityPanel'
@@ -54,6 +55,9 @@ async function deleteSource(formData: FormData) {
   if (!creator) return
 
   // Delete associated vector chunks first
+  const { data: ownedSource } = await supabase.from('sources').select('id')
+    .eq('id', sourceId).eq('creator_id', creator.id).maybeSingle()
+  if (!ownedSource) return
   await supabase
     .from('source_chunks')
     .delete()
@@ -107,12 +111,11 @@ export default async function DashboardPage() {
   const isMainnet = network === 'arc-mainnet'
   const activeNetworkId = isMainnet ? 'arc-mainnet' : 'arc-testnet'
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let sources: any[] = []
   let totalEarnings = 0
 
   if (creator) {
-    const { data } = await supabase
+    const { data } = await createAdminClient()
       .from('sources')
       .select(`
         id, url, title, price_usdc, status, created_at, network,
@@ -189,7 +192,7 @@ export default async function DashboardPage() {
         </section>
       </div>
 
-      <VerifyIdentityPanel />
+      <VerifyIdentityPanel key={`${activeNetworkId}:${creator?.id || 'none'}`} />
 
       <section>
         <h2 className="text-2xl font-sans font-bold mb-6 text-[var(--color-ink)]">Registered Sources</h2>
@@ -211,7 +214,6 @@ export default async function DashboardPage() {
                   </td>
                 </tr>
               ) : (
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 sources.map((s: any) => (
                   <tr key={s.id} className="hover:bg-[var(--color-paper)] transition-colors">
                     <td data-label="Title & URL" className="align-top">

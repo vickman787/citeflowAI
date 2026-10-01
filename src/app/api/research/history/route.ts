@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/utils/supabase/server'
+import { createAdminClient } from '@/utils/supabase/admin'
 
 export async function GET(request: NextRequest) {
   try {
@@ -16,6 +17,7 @@ export async function GET(request: NextRequest) {
       .eq('user_id', user.id)
       .eq('status', 'completed')
       .not('result', 'is', null)
+      .is('hidden_at', null)
       .order('created_at', { ascending: false })
       .limit(20)
 
@@ -55,9 +57,10 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'Missing session ID' }, { status: 400 })
     }
 
-    const { error } = await supabase
+    // Hide history without deleting sessions/payment evidence via cascades.
+    const { error } = await createAdminClient()
       .from('research_sessions')
-      .delete()
+      .update({ hidden_at: new Date().toISOString() })
       .eq('id', id)
       .eq('user_id', user.id)
 

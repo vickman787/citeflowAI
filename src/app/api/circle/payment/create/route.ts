@@ -1,6 +1,7 @@
 import { initiateUserControlledWalletsClient } from '@circle-fin/user-controlled-wallets';
 import { getCircleCredentials, getTreasuryAddress } from '@/lib/circle-credentials';
 import { NextResponse } from 'next/server';
+import { isArcUsdcToken } from '@/lib/payments/usdc-token';
 
 export async function POST(req: Request) {
   try {
@@ -8,6 +9,9 @@ export async function POST(req: Request) {
     const { userToken, walletAddress, amount, network } = body;
     const networkHeader = req.headers.get('x-network');
     const activeNetwork = network || networkHeader || 'arc-testnet';
+    if (activeNetwork !== 'arc-mainnet' && activeNetwork !== 'arc-testnet') {
+      return NextResponse.json({ error: 'Invalid network' }, { status: 400 });
+    }
     const isMainnet = activeNetwork === 'arc-mainnet';
 
     if (!userToken || !walletAddress || !amount) {
@@ -43,11 +47,10 @@ export async function POST(req: Request) {
     });
 
     const tokens = balanceRes.data?.tokenBalances || [];
-    // Assuming the user has USDC. In a real scenario, we'd check symbol === 'USDC'
-    const usdcToken = tokens.length > 0 ? tokens[0].token : null;
+    const usdcToken = tokens.find(t => isArcUsdcToken(t.token, activeNetwork))?.token;
 
     if (!usdcToken) {
-      return NextResponse.json({ error: 'Wallet has no tokens to pay with' }, { status: 400 });
+      return NextResponse.json({ error: 'Wallet has no Arc USDC on the selected network' }, { status: 400 });
     }
 
     // 2. Create the transfer transaction challenge

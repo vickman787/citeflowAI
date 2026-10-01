@@ -27,13 +27,11 @@ export function NetworkProvider({
     }
     return DEFAULT_NETWORK_ID;
   });
-  const [isInitialized, setIsInitialized] = useState(false);
-
   useEffect(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY) as NetworkId | null;
       if (saved && saved in NETWORKS) {
-        setNetworkIdState(saved);
+        queueMicrotask(() => setNetworkIdState(saved));
         document.cookie = `${STORAGE_KEY}=${saved}; path=/; max-age=31536000; SameSite=Lax`;
       } else if (initialNetworkId && initialNetworkId in NETWORKS) {
         localStorage.setItem(STORAGE_KEY, initialNetworkId);
@@ -41,7 +39,6 @@ export function NetworkProvider({
     } catch (e) {
       console.warn('Could not read network from localStorage:', e);
     }
-    setIsInitialized(true);
   }, [initialNetworkId]);
 
   const setNetwork = (id: NetworkId) => {
@@ -61,11 +58,7 @@ export function NetworkProvider({
 
   const appId = useMemo(() => {
     if (networkId === 'arc-mainnet') {
-      return (
-        process.env.NEXT_PUBLIC_CIRCLE_APP_ID_MAINNET ||
-        process.env.NEXT_PUBLIC_CIRCLE_APP_ID ||
-        ''
-      );
+      return process.env.NEXT_PUBLIC_CIRCLE_APP_ID_MAINNET || '';
     }
     return process.env.NEXT_PUBLIC_CIRCLE_APP_ID || '';
   }, [networkId]);

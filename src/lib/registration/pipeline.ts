@@ -97,7 +97,8 @@ export async function registerArticle(targetUrl: string, creatorId: string, pric
       .from('sources')
       .select('id, creator_id, status, network')
       .eq('url', normalizedUrl)
-      .single()
+      .eq('network', network)
+      .maybeSingle()
 
     let sourceId: string;
 
@@ -106,16 +107,14 @@ export async function registerArticle(targetUrl: string, creatorId: string, pric
           throw new Error('This article is already registered by another creator.')
        }
 
-       const existingNetwork = existing.network || 'arc-testnet'
        const isReactivation = existing.status === 'deleted'
-       const isNetworkRetag = existingNetwork !== network
 
-       if (!isReactivation && !isNetworkRetag) {
+       if (!isReactivation) {
           throw new Error('Article already registered (Duplicate)')
        }
 
-       // Reactivate a deleted source, or re-tag a source that was registered on
-       // the other network so the same work becomes citable on the active one.
+       // Reactivate only this network's row; never overwrite the other network's
+       // source ID, payment history, or creator ownership.
        const { data: updated, error } = await supabase
          .from('sources')
          .update({

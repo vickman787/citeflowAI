@@ -1,12 +1,13 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
+import type { NetworkId } from '@/lib/network'
 import { safeFetch } from '@/lib/net/safe-fetch'
 import { resolveByStructure, resolveXPost, isXUrl, resolveArcPost, isArcUrl, resolveYouTubeVideo, isYouTubeUrl, resolveLensPost, isLensUrl, isGitHubUrl, type Platform } from './resolve'
 
-// Deterministic per-creator code. Not a one-time secret like an OTP — it's
-// a durable proof token (same idea as a domain TXT record), checked live
-// against the page/post each time, so it doesn't need to expire.
-export function generateVerificationCode(creatorId: string): string {
-  return `citeflow-verify-${creatorId.replace(/-/g, '').slice(0, 12)}`
+// Keep existing testnet proofs valid. Mainnet uses a distinct code so a proof
+// published for one network cannot be reused to verify the other.
+export function generateVerificationCode(creatorId: string, network: NetworkId): string {
+  const legacyCode = `citeflow-verify-${creatorId.replace(/-/g, '').slice(0, 12)}`
+  return network === 'arc-mainnet' ? `${legacyCode}-5042` : legacyCode
 }
 
 interface VerifyResult {
@@ -377,8 +378,8 @@ async function verifyGitHub(proofUrl: string, code: string): Promise<VerifyResul
   return { platform: 'github', identifier, proofUrl }
 }
 
-export async function verifyIdentity(platform: Platform, proofUrl: string, creatorId: string): Promise<VerifyResult> {
-  const code = generateVerificationCode(creatorId)
+export async function verifyIdentity(platform: Platform, proofUrl: string, creatorId: string, network: NetworkId): Promise<VerifyResult> {
+  const code = generateVerificationCode(creatorId, network)
   switch (platform) {
     case 'domain':    return verifyDomain(proofUrl, code)
     case 'x':         return verifyX(proofUrl, code)

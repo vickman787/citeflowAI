@@ -2,7 +2,6 @@
 
 import React, { useEffect, useState } from 'react';
 import { useNetwork } from '@/context/NetworkContext';
-import { createClient } from '@/utils/supabase/client';
 
 export default function TreasuryPage() {
   const { network, networkId } = useNetwork();
@@ -10,28 +9,19 @@ export default function TreasuryPage() {
   const today = new Date().toISOString().split('T')[0];
 
   const [spent, setSpent] = useState<number>(0);
-  const dailyLimit = 100.00;
+  const [dailyLimit, setDailyLimit] = useState(100);
 
   useEffect(() => {
     let isCancelled = false;
 
     async function loadLimits() {
-      if (isMainnet) {
-        // Mainnet starts fresh with clean slate
-        setSpent(0);
-        return;
-      }
-
       try {
-        const supabase = createClient();
-        const { data: limitData } = await supabase
-          .from('treasury_limits')
-          .select('*')
-          .eq('date', today)
-          .single();
-
-        if (!isCancelled && limitData) {
-          setSpent(parseFloat(limitData.spent_usdc) || 0);
+        const response = await fetch(`/api/treasury/summary?network=${networkId}`);
+        if (!response.ok) throw new Error('Treasury summary unavailable');
+        const summary = await response.json();
+        if (!isCancelled) {
+          setSpent(summary.spent);
+          setDailyLimit(summary.dailyLimit);
         }
       } catch (e) {
         console.warn('Failed to load treasury limits:', e);
@@ -43,7 +33,7 @@ export default function TreasuryPage() {
     return () => {
       isCancelled = true;
     };
-  }, [networkId, isMainnet, today]);
+  }, [networkId]);
 
   const remaining = Math.max(0, dailyLimit - spent);
   const percentage = (spent / dailyLimit) * 100;

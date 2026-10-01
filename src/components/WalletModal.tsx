@@ -27,17 +27,16 @@ export default function WalletModal({ isOpen, onClose, onSuccess }: WalletModalP
   useEffect(() => {
     // Recreate the SDK on every open — reusing an instance across login
     // sessions leaves stale iframe/config state that breaks the OTP flow.
-    if (isOpen) {
-      const circleSdk = new W3SSdk({
-        appSettings: { appId: appId || (process.env.NEXT_PUBLIC_CIRCLE_APP_ID as string) }
-      });
-      setSdk(circleSdk);
+    const timer = setTimeout(() => {
+      if (!isOpen) return;
+      setSdk(appId ? new W3SSdk({ appSettings: { appId } }) : null);
       setModalState('EMAIL_INPUT');
       setEmail('');
-      setError(null);
+      setError(appId ? null : `Circle app ID is not configured for ${network.name}.`);
       setIsSubmitting(false);
-    }
-  }, [isOpen, appId]);
+    }, 0);
+    return () => clearTimeout(timer);
+  }, [isOpen, appId, network.name]);
 
   if (!isOpen) return null;
 
@@ -102,7 +101,7 @@ export default function WalletModal({ isOpen, onClose, onSuccess }: WalletModalP
         // We set the OTP tokens via loginConfigs inside updateConfigs
         // Make sure to include appSettings so it doesn't get overwritten!
         sdk.updateConfigs({
-          appSettings: { appId: appId || (process.env.NEXT_PUBLIC_CIRCLE_APP_ID as string) },
+          appSettings: { appId },
           loginConfigs: {
             deviceToken: deviceToken,
             deviceEncryptionKey: deviceEncryptionKey || '',
@@ -162,7 +161,7 @@ export default function WalletModal({ isOpen, onClose, onSuccess }: WalletModalP
 
       if (data.address) {
         // User already has a wallet. Let's do the invisible login!
-        await fetch('/api/circle/wallet-login', {
+        const loginRes = await fetch('/api/circle/wallet-login', {
           method: 'POST',
           headers: { 
             'Content-Type': 'application/json',
@@ -170,9 +169,14 @@ export default function WalletModal({ isOpen, onClose, onSuccess }: WalletModalP
           },
           body: JSON.stringify({ userToken: token, network: networkId }),
         });
+        const loginData = await loginRes.json().catch(() => ({}));
+        if (!loginRes.ok || !loginData.walletAddress ||
+            loginData.walletAddress.toLowerCase() !== data.address.toLowerCase()) {
+          throw new Error(loginData.error || 'Could not sign in to the creator dashboard. Please reconnect.');
+        }
         
         setModalState('COMPLETED');
-        onSuccess(data.address, token, encKey);
+        onSuccess(loginData.walletAddress, token, encKey);
         return;
       }
 

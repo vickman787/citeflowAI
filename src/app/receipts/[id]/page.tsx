@@ -1,8 +1,11 @@
 import { createClient } from '@/utils/supabase/server'
 import { notFound } from 'next/navigation'
 
-export default async function ReceiptPage({ params }: { params: { id: string } }) {
+export default async function ReceiptPage({ params }: { params: Promise<{ id: string }> }) {
   const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) notFound()
+  const { id } = await params
 
   const { data: auth } = await supabase
     .from('payment_authorizations')
@@ -11,7 +14,7 @@ export default async function ReceiptPage({ params }: { params: { id: string } }
       sources (title, url, creator_id),
       payment_settlements (*)
     `)
-    .eq('id', params.id)
+    .eq('id', id)
     .single()
 
   if (!auth) {
@@ -36,7 +39,7 @@ export default async function ReceiptPage({ params }: { params: { id: string } }
           <div className="space-y-4 font-mono text-sm">
             <div>
               <span className="opacity-60 block">Status:</span>
-              <span className={`font-bold ${settlement?.status === 'settled' ? 'text-signal-green' : 'text-rust'}`}>
+              <span className={`font-bold ${['confirmed', 'settled'].includes(settlement?.status) ? 'text-signal-green' : 'text-rust'}`}>
                 {settlement ? settlement.status.toUpperCase() : 'PENDING'}
               </span>
             </div>
@@ -44,16 +47,10 @@ export default async function ReceiptPage({ params }: { params: { id: string } }
               <span className="opacity-60 block">Amount:</span>
               <span className="text-xl">${parseFloat(auth.amount_usdc).toFixed(2)} USDC</span>
             </div>
-            <div>
-              <span className="opacity-60 block">Authorization Payload:</span>
-              <span className="break-all text-xs block bg-[var(--color-paper)] p-2 mt-1 border border-[var(--color-border-subtle)]">
-                {auth.authorization_payload}
-              </span>
-            </div>
-            {settlement?.gateway_batch_id && (
+            {settlement?.transaction_hash && (
               <div>
-                <span className="opacity-60 block">Gateway Batch ID:</span>
-                <span className="break-all">{settlement.gateway_batch_id}</span>
+                <span className="opacity-60 block">Transaction Hash:</span>
+                <span className="break-all">{settlement.transaction_hash}</span>
               </div>
             )}
           </div>

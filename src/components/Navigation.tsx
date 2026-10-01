@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { Menu, X, LogIn, LogOut, Copy, Check, Droplet, Send, ChevronDown } from "lucide-react";
 import { createClient } from "@/utils/supabase/client";
 import SendModal from "./SendModal";
@@ -23,7 +23,6 @@ function LogoMark({ size = 28 }: { size?: number }) {
 export function Navigation({ initialUser }: { initialUser?: any }) {
   const { network, networkId } = useNetwork();
   const [isOpen, setIsOpen] = useState(false);
-  const [user, setUser] = useState<any>(initialUser || null);
   const [walletAddress, setWalletAddress] = useState<string | null>(null);
   const [walletBalance, setWalletBalance] = useState<string | null>(null);
   const [isCopied, setIsCopied] = useState(false);
@@ -31,17 +30,32 @@ export function Navigation({ initialUser }: { initialUser?: any }) {
   const [isWalletModalOpen, setIsWalletModalOpen] = useState(false);
   const [isWalletMenuOpen, setIsWalletMenuOpen] = useState(false);
   const walletMenuRef = useRef<HTMLDivElement>(null);
+  const restoredNetworkRef = useRef<string | null>(null);
   const pathname = usePathname();
   const router = useRouter();
   const supabase = createClient();
 
-  const getStored = (baseKey: string) => {
+  const getStored = useCallback((baseKey: string) => {
     if (typeof window === 'undefined') return null;
     const scoped = localStorage.getItem(`${baseKey}_${networkId}`);
     if (scoped) return scoped;
     if (networkId === 'arc-testnet') return localStorage.getItem(baseKey);
     return null;
-  };
+  }, [networkId]);
+
+  const handleWalletLogout = useCallback(() => {
+    setWalletAddress(null);
+    setWalletBalance(null);
+    localStorage.removeItem(`circle_wallet_address_${networkId}`);
+    localStorage.removeItem(`circle_user_token_${networkId}`);
+    localStorage.removeItem(`circle_encryption_key_${networkId}`);
+    if (networkId === 'arc-testnet') {
+      localStorage.removeItem('circle_wallet_address');
+      localStorage.removeItem('circle_user_token');
+      localStorage.removeItem('circle_encryption_key');
+    }
+    window.dispatchEvent(new Event('wallet_changed'));
+  }, [networkId]);
 
   // Close the wallet dropdown on outside click or Escape
   useEffect(() => {
@@ -62,13 +76,28 @@ export function Navigation({ initialUser }: { initialUser?: any }) {
     };
   }, [isWalletMenuOpen]);
 
-  // Sync prop changes from layout
+  // A browser can retain a Supabase session for the previous network. Restore
+  // the wallet selected for this network even when another user is signed in.
   useEffect(() => {
-    setUser(initialUser || null);
-    
-    // Automatically restore backend session if frontend has a wallet token but backend has no user
+    if (restoredNetworkRef.current === networkId) return;
+    restoredNetworkRef.current = networkId;
+
     const token = getStored('circle_user_token');
-    if (!initialUser && token) {
+    const expectedAddress = getStored('circle_wallet_address')?.toLowerCase();
+    const email = typeof initialUser?.email === 'string' ? initialUser.email.toLowerCase() : '';
+    const signedInAddress = email.endsWith('@citeflow.local')
+      ? email.slice(0, -'@citeflow.local'.length)
+      : null;
+
+    if (!token) {
+      if (initialUser) {
+        void createClient().auth.signOut().then(() => router.refresh());
+      }
+      return;
+    }
+    if (expectedAddress && signedInAddress === expectedAddress) return;
+
+    if (token) {
       fetch('/api/circle/wallet-login', {
         method: 'POST',
         headers: { 
@@ -77,22 +106,35 @@ export function Navigation({ initialUser }: { initialUser?: any }) {
         },
         body: JSON.stringify({ userToken: token, network: networkId }),
       })
-      .then(res => {
-        if (res.ok) {
+      .then(async res => {
+        if (!res.ok) {
+          setWalletAddress(null);
+          setWalletBalance(null);
+          if (res.status === 400 || res.status === 401) {
+            localStorage.removeItem(`circle_user_token_${networkId}`);
+            if (networkId === 'arc-testnet') localStorage.removeItem('circle_user_token');
+          }
+          await createClient().auth.signOut();
           router.refresh();
-        } else {
-          handleWalletLogout();
+          return;
         }
+        const result = await res.json();
+        if (!result.walletAddress ||
+            (expectedAddress && result.walletAddress.toLowerCase() !== expectedAddress)) {
+          setWalletAddress(null);
+          setWalletBalance(null);
+          await createClient().auth.signOut();
+          router.refresh();
+          return;
+        }
+        localStorage.setItem(`circle_wallet_address_${networkId}`, result.walletAddress);
+        router.refresh();
       })
       .catch(console.error);
     }
-  }, [initialUser, router, networkId]);
+  }, [initialUser, router, networkId, getStored]);
 
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      setUser(session?.user ?? null);
-    });
-
     const fetchBalance = async (token: string) => {
       try {
         const res = await fetch(`/api/circle/wallet?network=${networkId}`, {
@@ -119,9 +161,13 @@ export function Navigation({ initialUser }: { initialUser?: any }) {
     const initWallet = () => {
       setWalletBalance(null);
       const addr = getStored('circle_wallet_address');
-      setWalletAddress(addr);
       const token = getStored('circle_user_token');
-      if (token) fetchBalance(token);
+      const email = typeof initialUser?.email === 'string' ? initialUser.email.toLowerCase() : '';
+      const signedInAddress = email.endsWith('@citeflow.local')
+        ? email.slice(0, -'@citeflow.local'.length) : null;
+      const isAuthenticatedWallet = !!token && !!addr && addr.toLowerCase() === signedInAddress;
+      setWalletAddress(isAuthenticatedWallet ? addr : null);
+      if (isAuthenticatedWallet) fetchBalance(token);
     };
 
     initWallet();
@@ -133,31 +179,16 @@ export function Navigation({ initialUser }: { initialUser?: any }) {
     window.addEventListener('network_changed', handleUpdate);
 
     return () => {
-      subscription.unsubscribe();
       window.removeEventListener('storage', handleUpdate);
       window.removeEventListener('wallet_changed', handleUpdate);
       window.removeEventListener('network_changed', handleUpdate);
     };
-  }, [supabase, networkId]);
+  }, [networkId, getStored, handleWalletLogout, initialUser?.email]);
 
   const handleLogout = async () => {
     handleWalletLogout();
     await supabase.auth.signOut();
     window.location.href = "/";
-  };
-
-  const handleWalletLogout = () => {
-    setWalletAddress(null);
-    setWalletBalance(null);
-    localStorage.removeItem(`circle_wallet_address_${networkId}`);
-    localStorage.removeItem(`circle_user_token_${networkId}`);
-    localStorage.removeItem(`circle_encryption_key_${networkId}`);
-    if (networkId === 'arc-testnet') {
-      localStorage.removeItem('circle_wallet_address');
-      localStorage.removeItem('circle_user_token');
-      localStorage.removeItem('circle_encryption_key');
-    }
-    window.dispatchEvent(new Event('wallet_changed'));
   };
 
   const handleCopy = () => {

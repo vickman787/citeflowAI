@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { initiateUserControlledWalletsClient } from '@circle-fin/user-controlled-wallets'
 import { createClient } from '@/utils/supabase/server'
 import { createAdminClient } from '@/utils/supabase/admin'
-import crypto from 'crypto'
+import { getCircleCredentials } from '@/lib/circle-credentials'
 
 export async function POST(request: NextRequest) {
   try {
@@ -10,11 +10,12 @@ export async function POST(request: NextRequest) {
     const { userToken, network } = body
     const networkHeader = request.headers.get('x-network')
     const activeNetwork = network || networkHeader || 'arc-testnet'
+    if (activeNetwork !== 'arc-mainnet' && activeNetwork !== 'arc-testnet') {
+      return NextResponse.json({ error: 'Invalid network' }, { status: 400 })
+    }
     const isMainnet = activeNetwork === 'arc-mainnet'
 
-    const apiKey = isMainnet
-      ? (process.env.CIRCLE_API_KEY_MAINNET || process.env.CIRCLE_API_KEY)
-      : process.env.CIRCLE_API_KEY
+    const apiKey = getCircleCredentials(isMainnet ? 'arc-mainnet' : 'arc-testnet').apiKey
 
     if (!apiKey) {
       return NextResponse.json({ error: 'Missing Circle API Key' }, { status: 500 })
@@ -34,59 +35,38 @@ export async function POST(request: NextRequest) {
 
     const walletAddress = userWallet.address.toLowerCase()
 
-    // 2. We now cryptographically know the user owns this wallet address.
-    // Let's create an "Invisible Supabase Session" for them.
+    // Circle has verified possession of this wallet's user token. Issue a
+    // one-time Supabase login for its deterministic internal email, preserving
+    // any existing account and creator profile regardless of its old password.
     const supabase = await createClient()
     const email = `${walletAddress}@citeflow.local`
-    
-    // Generate a deterministic but secure password so they can log in next time
-    const password = crypto.createHash('sha256').update(walletAddress + (process.env.SUPABASE_SERVICE_ROLE_KEY || 'citeflow')).digest('hex')
-
-    let userId = null;
-
-    // Try to sign in first
-    const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
-      email,
-      password,
+    const adminAuth = createAdminClient()
+    const { data: link, error: linkError } = await adminAuth.auth.admin.generateLink({ type: 'magiclink', email })
+    if (linkError || !link.properties?.hashed_token || link.user?.email?.toLowerCase() !== email) {
+      console.error('Wallet Supabase link generation failed:', linkError)
+      return NextResponse.json({ error: 'Could not prepare wallet login' }, { status: 500 })
+    }
+    const { data: login, error: loginError } = await supabase.auth.verifyOtp({
+      token_hash: link.properties.hashed_token,
+      type: 'magiclink',
     })
-
-    if (signInError) {
-      // If sign in fails, it means the user doesn't exist yet, so we sign them up!
-      const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
-        email,
-        password,
-      })
-
-      if (signUpError) {
-        console.error('Invisible Supabase SignUp Error:', signUpError)
-        return NextResponse.json({ error: 'Failed to create internal user session' }, { status: 500 })
-      }
-      userId = signUpData.user?.id;
-    } else {
-      userId = signInData.user?.id;
+    if (loginError || !login.user || !login.session || login.user.id !== link.user.id) {
+      console.error('Wallet Supabase login failed:', loginError)
+      return NextResponse.json({ error: 'Could not establish wallet session' }, { status: 500 })
     }
 
-    if (userId) {
-      // Wait 500ms to ensure Supabase's handle_new_user database trigger has finished creating the row
-      await new Promise(resolve => setTimeout(resolve, 500));
-
-      const adminAuth = createAdminClient();
-      
-      // Automatically set their wallet_address in the profiles table (Bypassing RLS)
-      const { error: profileError } = await adminAuth
-        .from('profiles')
-        .update({ wallet_address: walletAddress })
-        .eq('id', userId);
-
-      if (profileError) console.error('Admin Profile Update Error:', profileError);
-
-      // Automatically initialize their creator profile so they don't have to manually click "Complete Setup"
-      const { error: creatorError } = await adminAuth
-        .from('creator_profiles')
-        .insert({ user_id: userId })
-        // Ignore error if it already exists (duplicate key)
-        .select()
-        .single();
+    const userId = login.user.id
+    const { error: profileError } = await adminAuth.from('profiles')
+      .upsert({ id: userId, wallet_address: walletAddress }, { onConflict: 'id' })
+    if (profileError) {
+      console.error('Wallet profile update failed:', profileError)
+      return NextResponse.json({ error: 'Could not save wallet profile' }, { status: 500 })
+    }
+    const { error: creatorError } = await adminAuth.from('creator_profiles')
+      .upsert({ user_id: userId }, { onConflict: 'user_id', ignoreDuplicates: true })
+    if (creatorError) {
+      console.error('Wallet creator profile update failed:', creatorError)
+      return NextResponse.json({ error: 'Could not save creator profile' }, { status: 500 })
     }
 
     // Once signed in/up, the cookies are automatically set by our Supabase SSR utility!

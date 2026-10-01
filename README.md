@@ -22,7 +22,7 @@ CiteFlow AI is payable by humans through the web terminal, and by autonomous age
 1. **Budget escrow:** The researcher connects a Circle User Controlled Wallet and locks an upfront prompt budget (e.g. $1.00 USDC): one signature, no recurring subscription.
 2. **Metered citation payments:** The agent evaluates registered, ownership verified sources against the query. Every source it actually cites gets paid: the rest cost nothing.
 3. **Platform fee:** A small percentage of each citation payment covers LLM inference and infrastructure.
-4. **Refund of unspent budget:** Whatever was not paid out settles back to the researcher wallet automatically: a simple query with fewer citations costs less, by construction.
+4. **Refund of unspent budget:** Unspent funds are queued for an idempotent transfer; the UI reports them as paid only after on-chain confirmation.
 5. **Agent native payment (x402):** The same research endpoint is callable by any autonomous agent over HTTP: the agent pays via the x402 protocol (settled through Circle Gateway on Arc Mainnet), the research runs, and unspent budget is refunded the same way.
 
 ## Core Features
@@ -31,7 +31,7 @@ CiteFlow AI is payable by humans through the web terminal, and by autonomous age
 * **Creator ownership verification (hard gate):** Before anyone can register a source, they must prove control of it: domain, X, Medium, Substack, or Arc House. Enforced at the database level so no one can register someone else work and intercept their payments.
 * **Invisible Web2 to Web3 auth (Circle + Supabase):** Email plus PIN onboarding via Circle User Controlled Wallets, no seed phrase. The backend maps the Circle Wallet identity into a Supabase auth session so research history and payouts persist across devices.
 * **RAG via embeddings:** Registered sources are embedded and retrieved by relevance (`src/lib/ai/embeddings.ts`), not keyword match, so citation and payment are tied to what actually grounded the answer.
-* **Strict grounding gate:** The agent will never synthesize an ungrounded answer. If no registered sources match the query, it refuses to respond and issues an immediate full budget refund.
+* **Strict grounding gate:** If no registered sources match the query, the agent refuses to synthesize an answer and queues the unused budget for refund.
 * **Multi model LLM fallback:** Uses OpenAI first when `OPENAI_API_KEY` is configured, then falls back to Gemini and OpenRouter if a provider is unavailable.
 * **Live ledger:** A terminal themed dashboard showing real time budgets, citations, and payouts as they settle on chain.
 * **x402 agent endpoint and agent integrations:** `/api/agent/research` is a spec compliant, agent payable HTTP 402 endpoint. Call it with the direct Gateway SDK, a [Circle Agent Wallet](CIRCLE_AGENT_WALLET_X402.md), or the `citeflow_research` tool from the bundled [MCP server](mcp-server/README.md).
@@ -56,7 +56,7 @@ CiteFlow AI is payable by humans through the web terminal, and by autonomous age
 * A Circle Web3 Services account (User Controlled and Developer Controlled Wallets)
 
 ### Environment Variables
-Rename `.env.example` to `.env.local` and fill in your keys:
+Create `.env.local` and fill in your keys. Keep all secret values out of version control:
 
 ```bash
 # Supabase
@@ -67,9 +67,9 @@ SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
 # AI Providers
 GEMINI_API_KEY=your_gemini_key
 OPENAI_API_KEY=your_openai_key
+OPENROUTER_API_KEY=your_openrouter_key
 # Optional: defaults to gpt-4o-mini
 OPENAI_RESEARCH_MODEL=gpt-4o-mini
-ANTHROPIC_API_KEY=your_anthropic_key
 
 # Circle Web3 Infrastructure (Arc Mainnet Production)
 CIRCLE_API_KEY_MAINNET=your_circle_mainnet_key
@@ -77,7 +77,17 @@ NEXT_PUBLIC_CIRCLE_APP_ID_MAINNET=your_circle_mainnet_app_id
 CIRCLE_WALLET_ID_MAINNET=your_mainnet_treasury_wallet_id
 AGENT_TREASURY_ADDRESS_MAINNET=your_mainnet_treasury_address
 RAW_ENTITY_SECRET_MAINNET=your_mainnet_entity_secret
+CRON_SECRET=a_long_random_secret_for_the_disbursement_scheduler
 ```
+
+`CRON_SECRET` is required: `/api/treasury/disburse` fails closed without it. Configure a second AI provider if you want fallback when OpenAI is unavailable.
+
+### Mainnet safety rollout
+
+1. Back up the Supabase database. Review and apply `supabase/migrations/20260930000000_payment_and_network_integrity.sql` **before** deploying this application version. The migration preserves existing testnet rows while adding network-specific source/identity uniqueness, payment/refund claims, and restrictive payment-table policies. Check for duplicate settlement authorization IDs and refund session IDs first; the new unique indexes will reject duplicates rather than silently delete them.
+2. Configure distinct mainnet/testnet Circle API keys, app IDs, treasury wallet IDs, and entity secrets. Configure `CRON_SECRET` and the scheduled disbursement job.
+3. Verify testnet dashboard sources, a fresh mainnet registration, a confirmed creator payout, and a refund using small test amounts before enabling general mainnet use. Circle submission IDs are not on-chain transaction hashes; submitted payments may need later reconciliation.
+4. Review `processing` or `failed` rows in `payment_settlements` and `pending_refunds` before retrying manually. The app intentionally does not issue a second transfer when the first submission is uncertain.
 
 CiteFlow AI operates in production on Arc Mainnet (Chain ID 5042). All citation micropayments and agent transactions settle directly on chain in live USDC.
 

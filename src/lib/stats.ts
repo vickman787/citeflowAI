@@ -1,4 +1,4 @@
-import { createClient } from '@/utils/supabase/server'
+import { createAdminClient } from '@/utils/supabase/admin'
 
 export const CREATOR_SHARE = 0.8 // 20% platform fee
 // Network isolation is now enforced by an explicit `network` column on sources,
@@ -14,7 +14,7 @@ export interface NetworkStats {
 // Live network stats from the ledger — used by the ticker and the landing page tiles
 export async function getNetworkStats(networkId?: string): Promise<NetworkStats> {
   const isMainnet = networkId === 'arc-mainnet'
-  const supabase = await createClient()
+  const supabase = createAdminClient()
 
   if (isMainnet) {
     try {

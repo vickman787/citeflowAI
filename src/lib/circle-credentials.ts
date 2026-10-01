@@ -26,6 +26,7 @@ export function getCircleCredentials(network: CiteflowNetwork | string = 'arc-te
       rawEntitySecret: requireEnv('RAW_ENTITY_SECRET_MAINNET', 'arc-mainnet'),
     }
   }
+  if (network !== 'arc-testnet') throw new Error(`Unsupported Circle network: ${network}`)
   return {
     apiKey: requireEnv('CIRCLE_API_KEY', 'arc-testnet'),
     walletId: requireEnv('CIRCLE_WALLET_ID', 'arc-testnet'),
@@ -35,6 +36,7 @@ export function getCircleCredentials(network: CiteflowNetwork | string = 'arc-te
 
 // Resolve the treasury (payTo) address for a network with the same strict rule.
 export function getTreasuryAddress(network: CiteflowNetwork | string = 'arc-testnet'): string {
+  if (network !== 'arc-testnet' && network !== 'arc-mainnet') throw new Error(`Unsupported treasury network: ${network}`)
   return network === 'arc-mainnet'
     ? requireEnv('AGENT_TREASURY_ADDRESS_MAINNET', 'arc-mainnet')
     : requireEnv('AGENT_TREASURY_ADDRESS', 'arc-testnet')

@@ -3,6 +3,7 @@ import crypto from 'crypto'
 import { generateDynamicCiphertext } from '@/lib/payments/circle-api'
 import { NETWORKS } from '@/lib/network'
 import { getCircleCredentials } from '@/lib/circle-credentials'
+import { getCircleTransaction } from '@/lib/payments/circle-api'
 
 // Arc uses the same Circle-issued USDC address on mainnet and testnet.
 // Source: https://developers.circle.com/stablecoins/usdc-contract-addresses
@@ -190,6 +191,7 @@ export async function settleEip3009Payment(
   txHash?: string
   error?: string
 }> {
+  let submittedTxId: string | undefined
   try {
     const isMainnet = network === 'eip155:5042' || network === 'arc-mainnet'
     let apiKey: string
@@ -210,6 +212,8 @@ export async function settleEip3009Payment(
 
     const ciphertext = await generateDynamicCiphertext(rawSecret, apiKey)
 
+    const digest = crypto.createHash('sha256').update(`${network}:${auth.from.toLowerCase()}:${auth.nonce.toLowerCase()}`).digest('hex')
+    const idempotencyKey = `${digest.slice(0, 8)}-${digest.slice(8, 12)}-5${digest.slice(13, 16)}-8${digest.slice(17, 20)}-${digest.slice(20, 32)}`
     const response = await fetch('https://api.circle.com/v1/w3s/developer/transactions/contractExecution', {
       method: 'POST',
       headers: {
@@ -217,7 +221,7 @@ export async function settleEip3009Payment(
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        idempotencyKey: crypto.randomUUID(),
+        idempotencyKey,
         walletId,
         contractAddress: usdcAddress,
         abiFunctionSignature: 'transferWithAuthorization(address,address,uint256,uint256,uint256,bytes32,uint8,bytes32,bytes32)',
@@ -245,14 +249,24 @@ export async function settleEip3009Payment(
       }
     }
 
-    const txId = data.data?.id || data.data?.txHash || 'settled'
-    return {
-      success: true,
-      txHash: txId,
+    const txId = data.data?.id
+    if (!txId) return { success: false, error: 'Circle did not return a transaction ID' }
+    submittedTxId = txId
+    // Do not run research or creator payouts against a merely submitted buyer
+    // payment. The caller can retry with a new authorization after failure.
+    for (let attempt = 0; attempt < 12; attempt++) {
+      const tx = await getCircleTransaction(txId, isMainnet ? 'arc-mainnet' : 'arc-testnet')
+      if (tx.state === 'COMPLETE' && tx.txHash) return { success: true, txHash: tx.txHash }
+      if (['FAILED', 'DENIED', 'CANCELLED'].includes(tx.state)) {
+        return { success: false, error: `Circle settlement ${tx.state}: ${tx.error || txId}` }
+      }
+      await new Promise(resolve => setTimeout(resolve, 2500))
     }
+    return { success: false, txHash: txId, error: `Circle settlement still pending: ${txId}. Do not pay again.` }
   } catch (err: any) {
     return {
       success: false,
+      txHash: submittedTxId,
       error: err.message || 'On chain settlement failed',
     }
   }

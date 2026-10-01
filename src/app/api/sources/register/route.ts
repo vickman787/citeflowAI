@@ -33,6 +33,9 @@ export async function POST(request: NextRequest) {
     const headerNetwork = request.headers.get('x-network')
     const cookieStore = await cookies()
     const network = headerNetwork || cookieStore.get('citeflow_network')?.value || 'arc-testnet'
+    if (network !== 'arc-testnet' && network !== 'arc-mainnet') {
+      return NextResponse.json({ error: 'Invalid network' }, { status: 400 })
+    }
 
     const body = await request.json()
     const parsed = registrationSchema.safeParse(body)

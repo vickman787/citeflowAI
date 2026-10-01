@@ -84,7 +84,10 @@ export async function GET(request: NextRequest) {
 
     // The payment's own network is authoritative. A client header or query param
     // must never override which treasury the signed payment has to target.
-    const acceptedNetwork = parsedPayment.accepted?.network || parsedPayment.network || 'eip155:5042'
+    const acceptedNetwork = parsedPayment.accepted?.network || parsedPayment.network
+    if (!['eip155:5042', 'eip155:5042002'].includes(acceptedNetwork)) {
+      return NextResponse.json({ error: 'Unsupported signed payment network' }, { status: 400 })
+    }
     const isMainnet = acceptedNetwork === 'eip155:5042'
     const activeNetwork = isMainnet ? 'arc-mainnet' : 'arc-testnet'
     let expectedPayTo: string
@@ -174,8 +177,9 @@ export async function GET(request: NextRequest) {
             { status: 409 }
           )
         }
-        // Any other bookkeeping error must never block a valid payment.
         console.error('Failed to record EIP-3009 replay guard entry:', guardError)
+        await supabase.from('research_sessions').update({ status: 'failed' }).eq('id', session.id)
+        return NextResponse.json({ error: 'Payment replay guard unavailable' }, { status: 500 })
       }
     }
 
@@ -187,6 +191,12 @@ export async function GET(request: NextRequest) {
       const settlement = await settleEip3009Payment(eipPayload, acceptedNetwork)
 
       if (!settlement.success) {
+        if (settlement.txHash) {
+          await supabase.from('research_sessions').update({ status: 'funding_pending',
+            funding_transaction_id: settlement.txHash, payer_address: payerAddress }).eq('id', session.id)
+          return NextResponse.json({ status: 'funding_pending', transactionId: settlement.txHash,
+            message: 'Payment submitted but not yet confirmed. Do not pay again; an automatic refund will be queued if it confirms.' }, { status: 202 })
+        }
         await supabase.from('research_sessions').update({ status: 'failed' }).eq('id', session.id)
         return NextResponse.json(
           { error: 'Payment settlement failed', details: settlement.error },
@@ -297,10 +307,13 @@ export async function GET(request: NextRequest) {
 
   const gwBudget = parseFloat(gwRequirement.amount) / 1_000_000
   const gwAuthorization = (parsedPayment?.payload?.authorization || {}) as { from?: string; nonce?: string }
-  // The wallet that signed the payment (authorization.from) is the wallet the
-  // user pays from, so refunds must follow it. Circle's verify "payer" has been
-  // observed to be a different address and is only a fallback.
-  const gwPayer = gwAuthorization.from || gwVerify.payer
+  // Circle's verify "payer" is the wallet whose Gateway balance was debited, which
+  // is the correct refund destination. Fall back to the signed authorization's
+  // from field only if the facilitator did not report a payer.
+  const gwPayer = gwVerify.payer || gwAuthorization.from
+  if (!gwPayer || !/^0x[0-9a-f]{40}$/i.test(gwPayer)) {
+    return NextResponse.json({ error: 'Verified payment has no valid refund address' }, { status: 402 })
+  }
   const gwNonce = gwAuthorization.nonce ? String(gwAuthorization.nonce) : ''
 
   const supabase = createAdminClient()
@@ -352,6 +365,8 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ error: 'This payment authorization has already been used' }, { status: 409 })
       }
       console.error('Failed to record Gateway replay guard entry:', guardError)
+      await supabase.from('research_sessions').update({ status: 'failed' }).eq('id', session.id)
+      return NextResponse.json({ error: 'Payment replay guard unavailable' }, { status: 500 })
     }
   }
 

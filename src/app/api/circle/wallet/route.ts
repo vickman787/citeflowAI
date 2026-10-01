@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { initiateUserControlledWalletsClient } from '@circle-fin/user-controlled-wallets'
+import { getCircleCredentials } from '@/lib/circle-credentials'
 
 export async function GET(request: NextRequest) {
   try {
@@ -12,11 +13,12 @@ export async function GET(request: NextRequest) {
     const networkHeader = request.headers.get('x-network')
     const { searchParams } = new URL(request.url)
     const network = networkHeader || searchParams.get('network')
+    if (network && network !== 'arc-mainnet' && network !== 'arc-testnet') {
+      return NextResponse.json({ error: 'Invalid network' }, { status: 400 })
+    }
     const isMainnet = network === 'arc-mainnet'
 
-    const apiKey = isMainnet
-      ? (process.env.CIRCLE_API_KEY_MAINNET || process.env.CIRCLE_API_KEY)
-      : process.env.CIRCLE_API_KEY
+    const apiKey = getCircleCredentials(isMainnet ? 'arc-mainnet' : 'arc-testnet').apiKey
 
     if (!apiKey) {
       return NextResponse.json({ error: 'Missing Circle API Key' }, { status: 500 })

@@ -1,77 +1,95 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { autoDisburseGatewayBalance, withdrawGatewayTo } from '@/lib/payments/gateway_disbursement'
-import { executeGatewayTransfer } from '@/lib/payments/circle-api'
+import { autoDisburseGatewayBalance } from '@/lib/payments/gateway_disbursement'
+import { claimRefund, claimRefunds, processClaimedRefund, queueRefund, reconcileRefund } from '@/lib/payments/refunds'
 import { createAdminClient } from '@/utils/supabase/admin'
+import { getCircleTransaction } from '@/lib/payments/circle-api'
+import { retryProcessingPayouts } from '@/lib/payments/license'
 
-// Sweeps the treasury's Arc mainnet Circle Gateway balance on-chain, then pays
-// any refunds still owed. Buyer payments settle into the treasury's Gateway
-// balance while refunds and creator payouts come from the on-chain wallet, and
-// Gateway settlement is batched, so this runs on a schedule (see vercel.json)
-// and is safe to call manually:
-//   curl -H "Authorization: Bearer $CRON_SECRET" https://<host>/api/treasury/disburse
 export async function GET(request: NextRequest) {
   const secret = process.env.CRON_SECRET
-  if (secret) {
-    const auth = request.headers.get('authorization')
-    if (auth !== `Bearer ${secret}`) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  // Fail closed. Missing CRON_SECRET must never make treasury operations public.
+  if (!secret) return NextResponse.json({ error: 'CRON_SECRET not configured' }, { status: 503 })
+  if (request.headers.get('authorization') !== `Bearer ${secret}`) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  try {
+    const db = createAdminClient()
+    // If a buyer's on-chain settlement outlived the request timeout, do not
+    // run research against a pending payment. Refund it after confirmation.
+    const { data: fundingPending } = await db.from('research_sessions')
+      .select('id, funding_transaction_id, payer_address, budget_usdc, network')
+      .eq('status', 'funding_pending').not('funding_transaction_id', 'is', null).limit(25)
+    const fundingReconciled = []
+    for (const session of fundingPending || []) {
+      try {
+        const tx = await getCircleTransaction(session.funding_transaction_id, session.network)
+        if (tx.state === 'COMPLETE' && tx.txHash) {
+          const refund = await queueRefund(session.id, session.payer_address, Number(session.budget_usdc), session.network)
+          await db.from('research_sessions').update({ status: 'refund_pending' }).eq('id', session.id)
+          const claimed = await claimRefund(refund.id)
+          if (claimed) await processClaimedRefund(claimed)
+          fundingReconciled.push('refund queued')
+        } else if (['FAILED', 'DENIED', 'CANCELLED'].includes(tx.state)) {
+          await db.from('research_sessions').update({ status: 'failed' }).eq('id', session.id)
+          fundingReconciled.push('settlement failed')
+        } else fundingReconciled.push('pending')
+      } catch (error: any) { fundingReconciled.push(`lookup error: ${error.message}`) }
     }
-  } else {
-    console.warn('CRON_SECRET is not set; /api/treasury/disburse is publicly callable.')
-  }
-
-  // Pay owed refunds first (from the Gateway balance when possible), then sweep
-  // whatever remains on-chain.
-  const refunds = await processPendingRefunds()
-  const sweep = await autoDisburseGatewayBalance('arc-mainnet')
-
-  return NextResponse.json({ refunds, sweep })
-}
-
-async function processPendingRefunds(limit = 25) {
-  const supabase = createAdminClient()
-
-  const { data, error } = await supabase
-    .from('pending_refunds')
-    .select('id, payer_address, amount_usdc, network, attempts')
-    .eq('status', 'pending')
-    .lt('attempts', 5)
-    .order('created_at', { ascending: true })
-    .limit(limit)
-
-  if (error) {
-    return { paid: 0, failed: 0, total: 0, error: error.message }
-  }
-
-  let paid = 0
-  let failed = 0
-
-  for (const refund of data || []) {
-    const network = refund.network === 'arc-mainnet' ? 'arc-mainnet' : 'arc-testnet'
-    try {
-      const amountStr = Number(refund.amount_usdc).toFixed(2)
-      let txId: string
-      if (network === 'arc-mainnet') {
-        const gw = await withdrawGatewayTo(refund.payer_address, amountStr, network)
-        txId = gw.success
-          ? gw.txHash || 'gateway'
-          : await executeGatewayTransfer(refund.payer_address, amountStr, network)
-      } else {
-        txId = await executeGatewayTransfer(refund.payer_address, amountStr, network)
-      }
-      await supabase
-        .from('pending_refunds')
-        .update({ status: 'paid', paid_transaction_id: txId })
-        .eq('id', refund.id)
-      paid++
-    } catch (e: any) {
-      failed++
-      await supabase
-        .from('pending_refunds')
-        .update({ attempts: (refund.attempts || 0) + 1, last_error: e.message })
-        .eq('id', refund.id)
+    const { data: submitted } = await db.from('pending_refunds').select('*').eq('status', 'submitted').limit(50)
+    const reconciled = []
+    for (const refund of submitted || []) {
+      try { reconciled.push(await reconcileRefund(refund)) }
+      catch (error: any) { reconciled.push(`lookup error: ${error.message}`) }
     }
-  }
 
-  return { paid, failed, total: (data || []).length }
+    const claims = await claimRefunds(25)
+    const refunds = []
+    for (const refund of claims) refunds.push(await processClaimedRefund(refund))
+
+    const retriedPayouts = await retryProcessingPayouts()
+    const { data: payouts } = await db.from('payment_settlements')
+      .select('authorization_id, gateway_settlement_id, payment_authorizations(network)')
+      .eq('status', 'submitted').not('gateway_settlement_id', 'is', null).limit(50)
+    let confirmedPayouts = 0
+    for (const payout of payouts || []) {
+      const network = (payout as any).payment_authorizations?.network || 'arc-testnet'
+      try {
+        const tx = await getCircleTransaction(payout.gateway_settlement_id, network)
+        if (tx.state === 'COMPLETE' && tx.txHash) {
+          await db.from('payment_settlements').update({ status: 'confirmed', transaction_hash: tx.txHash })
+            .eq('authorization_id', payout.authorization_id)
+          await db.from('payment_authorizations').update({ status: 'settled' })
+            .eq('authorization_id', payout.authorization_id)
+          confirmedPayouts++
+        } else if (['FAILED', 'DENIED', 'CANCELLED'].includes(tx.state)) {
+          await db.from('payment_settlements').update({ status: 'failed' }).eq('authorization_id', payout.authorization_id)
+          await db.from('payment_authorizations').update({ status: 'failed' }).eq('authorization_id', payout.authorization_id)
+        }
+      } catch (error: any) { console.error('Payout reconciliation failed', payout.authorization_id, error) }
+    }
+
+    const { data: pendingSweeps } = await db.from('gateway_sweeps')
+      .select('id, mint_transaction_id').eq('status', 'submitted').not('mint_transaction_id', 'is', null).limit(10)
+    const sweepReconciled = []
+    for (const pendingSweep of pendingSweeps || []) {
+      try {
+        const mint = await getCircleTransaction(pendingSweep.mint_transaction_id, 'arc-mainnet')
+        if (mint.state === 'COMPLETE' && mint.txHash) {
+          await db.from('gateway_sweeps').update({ status: 'confirmed', transaction_hash: mint.txHash,
+            updated_at: new Date().toISOString() }).eq('id', pendingSweep.id)
+          sweepReconciled.push('confirmed')
+        } else if (['FAILED', 'DENIED', 'CANCELLED'].includes(mint.state)) {
+          await db.from('gateway_sweeps').update({ status: 'mint_failed', last_error: mint.error || mint.state,
+            updated_at: new Date().toISOString() }).eq('id', pendingSweep.id)
+          sweepReconciled.push('mint failed — manual retry required')
+        } else sweepReconciled.push('pending')
+      } catch (error: any) { sweepReconciled.push(`lookup error: ${error.message}`) }
+    }
+
+    const sweep = await autoDisburseGatewayBalance('arc-mainnet')
+    return NextResponse.json({ refunds, reconciled, retriedPayouts, confirmedPayouts, fundingReconciled, sweepReconciled, sweep })
+  } catch (error: any) {
+    return NextResponse.json({ error: error.message || 'Treasury reconciliation failed' }, { status: 500 })
+  }
 }

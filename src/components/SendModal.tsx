@@ -23,20 +23,16 @@ export default function SendModal({ isOpen, onClose, userToken, encryptionKey, o
   const [sdk, setSdk] = useState<W3SSdk | null>(null);
 
   useEffect(() => {
-    if (isOpen) {
-      const circleSdk = new W3SSdk({
-        appSettings: { appId: appId || (process.env.NEXT_PUBLIC_CIRCLE_APP_ID as string) }
-      });
-      setSdk(circleSdk);
-    }
-    
-    if (isOpen) {
+    const timer = setTimeout(() => {
+      if (!isOpen) return;
+      setSdk(appId ? new W3SSdk({ appSettings: { appId } }) : null);
         setModalState('INPUT');
         setAddress('');
         setAmount('');
-        setError(null);
-    }
-  }, [isOpen]);
+        setError(appId ? null : `Circle app ID is not configured for ${network.name}.`);
+    }, 0);
+    return () => clearTimeout(timer);
+  }, [isOpen, appId, network.name]);
 
   if (!isOpen) return null;
 

@@ -1,12 +1,16 @@
 import { initiateUserControlledWalletsClient } from '@circle-fin/user-controlled-wallets';
 import { NextResponse } from 'next/server';
 import crypto from 'crypto';
+import { getCircleCredentials } from '@/lib/circle-credentials';
 
 export async function POST(req: Request) {
   const { userToken, network, blockchain } = await req.json();
 
   if (!userToken) {
     return NextResponse.json({ error: 'User Token is required' }, { status: 400 });
+  }
+  if (network && network !== 'arc-mainnet' && network !== 'arc-testnet') {
+    return NextResponse.json({ error: 'Invalid network' }, { status: 400 });
   }
 
   const isMainnet = network === 'arc-mainnet' || blockchain === 'ARC';
@@ -18,9 +22,7 @@ export async function POST(req: Request) {
     );
   }
 
-  const apiKey = (isMainnet
-    ? (process.env.CIRCLE_API_KEY_MAINNET || process.env.CIRCLE_API_KEY)
-    : process.env.CIRCLE_API_KEY) as string;
+  const apiKey = getCircleCredentials(isMainnet ? 'arc-mainnet' : 'arc-testnet').apiKey;
 
   const targetChain = blockchain || (isMainnet ? 'ARC' : 'ARC-TESTNET');
   const circleUserSdk = initiateUserControlledWalletsClient({ apiKey });

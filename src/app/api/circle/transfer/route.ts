@@ -1,15 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { initiateUserControlledWalletsClient } from '@circle-fin/user-controlled-wallets'
+import { getCircleCredentials } from '@/lib/circle-credentials'
+import crypto from 'crypto'
+import { isArcUsdcToken } from '@/lib/payments/usdc-token'
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
     const { userToken, walletId, amount, destinationAddress, network } = body
+    if (network !== 'arc-mainnet' && network !== 'arc-testnet') {
+      return NextResponse.json({ error: 'Invalid network' }, { status: 400 })
+    }
 
     const isMainnet = network === 'arc-mainnet'
-    const apiKey = isMainnet
-      ? (process.env.CIRCLE_API_KEY_MAINNET || process.env.CIRCLE_API_KEY)
-      : process.env.CIRCLE_API_KEY
+    const apiKey = getCircleCredentials(isMainnet ? 'arc-mainnet' : 'arc-testnet').apiKey
 
     if (!apiKey) {
       return NextResponse.json({ error: 'Missing Circle API Key' }, { status: 500 })
@@ -40,11 +44,8 @@ export async function POST(request: NextRequest) {
       walletId: actualWalletId
     })
     
-    // Find the USDC token ID or fallback to the native token (e.g., MATIC)
-    const usdcToken = tokenBalanceRes.data?.tokenBalances?.find(t => t.token?.symbol === 'USDC')
-    const nativeToken = tokenBalanceRes.data?.tokenBalances?.find(t => t.token?.isNative)
-    
-    const targetTokenId = usdcToken?.token?.id || nativeToken?.token?.id
+    const usdcToken = tokenBalanceRes.data?.tokenBalances?.find(t => isArcUsdcToken(t.token, network))
+    const targetTokenId = usdcToken?.token?.id
 
     if (!targetTokenId) {
       return NextResponse.json({ 

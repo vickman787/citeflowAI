@@ -108,7 +108,7 @@ export default function LiveLedger({ initialData, children }: LiveLedgerProps) {
               {hasLiveActivity ? (
                 effectiveData.recentPayments.map((payment: any, index: number) => (
                   <div
-                    key={payment.authorization_id || index}
+                    key={`${payment.created_at || ''}-${index}`}
                     className={`p-4 flex items-start justify-between ${index === 2 ? 'opacity-60' : ''}`}
                   >
                     <div className="overflow-hidden pr-4">
@@ -119,7 +119,7 @@ export default function LiveLedger({ initialData, children }: LiveLedgerProps) {
                         {payment.sources?.title || 'Unknown Source'}
                       </p>
                       <p className="font-mono text-xs text-[var(--color-olive)] truncate">
-                        Tx: {payment.authorization_id ? `${payment.authorization_id.substring(0, 12)}...` : 'pending'}
+                        Payment confirmed
                       </p>
                     </div>
                     <div className="text-right shrink-0">

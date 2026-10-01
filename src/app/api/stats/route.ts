@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/utils/supabase/server'
+import { createAdminClient } from '@/utils/supabase/admin'
 import { CREATOR_SHARE } from '@/lib/stats'
 
 export async function GET(request: NextRequest) {
@@ -8,7 +8,7 @@ export async function GET(request: NextRequest) {
     const network = searchParams.get('network') || 'arc-testnet'
     const isMainnet = network === 'arc-mainnet'
 
-    const supabase = await createClient()
+    const supabase = createAdminClient()
 
     if (isMainnet) {
       try {
@@ -31,7 +31,6 @@ export async function GET(request: NextRequest) {
           supabase
             .from('payment_authorizations')
             .select(`
-              authorization_id,
               amount_usdc,
               created_at,
               sources (
@@ -100,7 +99,6 @@ export async function GET(request: NextRequest) {
       supabase
         .from('payment_authorizations')
         .select(`
-          authorization_id,
           amount_usdc,
           created_at,
           sources (

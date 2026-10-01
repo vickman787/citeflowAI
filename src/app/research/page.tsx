@@ -96,16 +96,16 @@ export default function ResearchWorkspacePage() {
   }, [getStored, networkId, handleLogout])
 
   useEffect(() => {
-    syncWallet()
+    const timer = setTimeout(syncWallet, 0)
     window.addEventListener('wallet_changed', syncWallet)
-    return () => window.removeEventListener('wallet_changed', syncWallet)
+    return () => { clearTimeout(timer); window.removeEventListener('wallet_changed', syncWallet) }
   }, [syncWallet])
 
   useEffect(() => {
-    const circleSdk = new W3SSdk({
-      appSettings: { appId: appId || (process.env.NEXT_PUBLIC_CIRCLE_APP_ID as string) }
-    })
-    setSdk(circleSdk)
+    const timer = setTimeout(() => {
+      setSdk(appId ? new W3SSdk({ appSettings: { appId } }) : null)
+    }, 0)
+    return () => clearTimeout(timer)
   }, [appId])
 
   const handleCopy = () => {
@@ -426,7 +426,7 @@ export default function ResearchWorkspacePage() {
           <section className="card-panel">
             <div className="panel-h">
               grounded answer
-              <span className="ml-auto text-[var(--color-faint)]">{result.purchasedSources.length} paid citation{result.purchasedSources.length === 1 ? '' : 's'}</span>
+              <span className="ml-auto text-[var(--color-faint)]">{result.purchasedSources.length} cited source{result.purchasedSources.length === 1 ? '' : 's'}</span>
             </div>
             <div className="p-6 sm:p-8 text-[var(--color-ink)] leading-[1.85] text-base whitespace-pre-wrap max-w-[75ch]">
               {result.answer}
@@ -440,7 +440,7 @@ export default function ResearchWorkspacePage() {
             </div>
             <div>
               {result.purchasedSources.length === 0 ? (
-                <p className="font-mono text-sm text-[var(--color-soft-ink)] p-6">No paid sources were required for this answer. Full budget refunded.</p>
+                <p className="font-mono text-sm text-[var(--color-soft-ink)] p-6">No citation payouts. Any refund is queued and shown as paid only after on-chain confirmation.</p>
               ) : (
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 result.purchasedSources.map((source: any, i: number) => (
@@ -450,12 +450,12 @@ export default function ResearchWorkspacePage() {
                       <div className="text-xs text-[var(--color-faint)] truncate max-w-md">{source.url}</div>
                     </div>
                     <div className="text-left md:text-right flex-shrink-0">
-                      <div className="mb-2"><span className="tag">SETTLED ✓</span></div>
+                      <div className="mb-2"><span className="tag">{source.paymentStatus === 'free' ? 'FREE SOURCE' : source.paymentStatus === 'confirmed' ? 'CONFIRMED' : 'SUBMITTED — PENDING CONFIRMATION'}</span></div>
                       <div className="text-xs text-[var(--color-soft-ink)] break-all max-w-xs mb-1">
-                        <span className="text-[var(--color-faint)]">auth</span> {source.receipt?.payload?.split(':')[1] || 'unknown'}
+                        <span className="text-[var(--color-faint)]">Circle ID</span> {source.receipt?.transactionId || 'unknown'}
                       </div>
                       <div className="text-xs text-[var(--color-soft-ink)] break-all max-w-xs">
-                        <span className="text-[var(--color-faint)]">batch</span> {source.receipt?.gatewaySettlementId || 'unknown'}
+                        <span className="text-[var(--color-faint)]">On-chain hash</span> {source.receipt?.txHash || 'awaiting confirmation'}
                       </div>
                     </div>
                   </div>
