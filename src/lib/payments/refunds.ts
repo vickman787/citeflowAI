@@ -3,7 +3,7 @@ import { createAdminClient } from '@/utils/supabase/admin'
 import { executeGatewayTransfer, getCircleTransaction } from './circle-api'
 import type { NetworkId } from '@/lib/network'
 
-type Refund = { id: string; session_id: string; payer_address: string; amount_usdc: string; network: NetworkId; status: string; attempts: number; paid_transaction_id?: string }
+export type Refund = { id: string; session_id: string; payer_address: string; amount_usdc: string; network: NetworkId; status: string; attempts: number; paid_transaction_id?: string }
 
 export function usdcAmount(amount: number | string): string {
   const value = Number(amount)
@@ -65,6 +65,8 @@ export async function reconcileRefund(refund: Refund): Promise<'paid' | 'submitt
   const tx = await getCircleTransaction(refund.paid_transaction_id, refund.network)
   if (tx.state === 'COMPLETE' && tx.txHash) {
     await db.from('pending_refunds').update({ status: 'paid', transaction_hash: tx.txHash, last_error: null }).eq('id', refund.id)
+    if (refund.session_id) await db.from('research_sessions').update({ status: 'refunded' })
+      .eq('id', refund.session_id).eq('status', 'refund_pending')
     return 'paid'
   }
   if (['FAILED', 'DENIED', 'CANCELLED'].includes(tx.state)) {

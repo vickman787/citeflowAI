@@ -4,6 +4,7 @@ import { claimRefund, claimRefunds, processClaimedRefund, queueRefund, reconcile
 import { createAdminClient } from '@/utils/supabase/admin'
 import { getCircleTransaction } from '@/lib/payments/circle-api'
 import { retryProcessingPayouts } from '@/lib/payments/license'
+import { DEAD_FUNDING_STATES, inspectUserFunding } from '@/lib/payments/user-funding'
 
 export async function GET(request: NextRequest) {
   const secret = process.env.CRON_SECRET
@@ -15,22 +16,31 @@ export async function GET(request: NextRequest) {
 
   try {
     const db = createAdminClient()
-    // If a buyer's on-chain settlement outlived the request timeout, do not
-    // run research against a pending payment. Refund it after confirmation.
+    // A user-controlled research payment must remain available for its research.
+    // The research route resumes it when the owner reconnects; never refund the
+    // whole budget solely because on-chain confirmation arrived late.
     const { data: fundingPending } = await db.from('research_sessions')
-      .select('id, funding_transaction_id, payer_address, budget_usdc, network')
+      .select('id, funding_transaction_id, payer_address, budget_usdc, network, circle_user_id, created_at')
       .eq('status', 'funding_pending').not('funding_transaction_id', 'is', null).limit(25)
     const fundingReconciled = []
     for (const session of fundingPending || []) {
       try {
-        const tx = await getCircleTransaction(session.funding_transaction_id, session.network)
+        const tx = session.circle_user_id
+          ? await inspectUserFunding({ transactionId: session.funding_transaction_id,
+              circleUserId: session.circle_user_id, network: session.network,
+              payerAddress: session.payer_address, budget: Number(session.budget_usdc) })
+          : await getCircleTransaction(session.funding_transaction_id, session.network)
         if (tx.state === 'COMPLETE' && tx.txHash) {
+          if (session.circle_user_id) {
+            fundingReconciled.push('user funding confirmed; research awaits resume')
+            continue
+          }
           const refund = await queueRefund(session.id, session.payer_address, Number(session.budget_usdc), session.network)
           await db.from('research_sessions').update({ status: 'refund_pending' }).eq('id', session.id)
           const claimed = await claimRefund(refund.id)
           if (claimed) await processClaimedRefund(claimed)
           fundingReconciled.push('refund queued')
-        } else if (['FAILED', 'DENIED', 'CANCELLED'].includes(tx.state)) {
+        } else if (DEAD_FUNDING_STATES.includes(tx.state)) {
           await db.from('research_sessions').update({ status: 'failed' }).eq('id', session.id)
           fundingReconciled.push('settlement failed')
         } else fundingReconciled.push('pending')

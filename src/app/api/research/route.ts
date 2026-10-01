@@ -3,29 +3,21 @@ import { runResearchAgent } from '@/lib/ai/research-agent'
 import { createAdminClient } from '@/utils/supabase/admin'
 import { createClient } from '@/utils/supabase/server'
 import { initiateUserControlledWalletsClient } from '@circle-fin/user-controlled-wallets'
-import { getCircleCredentials, getTreasuryAddress } from '@/lib/circle-credentials'
+import { getCircleCredentials } from '@/lib/circle-credentials'
 import { z } from 'zod'
-import { NETWORKS } from '@/lib/network'
-import { isArcUsdcToken } from '@/lib/payments/usdc-token'
+import { DEAD_FUNDING_STATES, inspectUserFunding } from '@/lib/payments/user-funding'
+import type { NetworkId } from '@/lib/network'
 
 const researchRequestSchema = z.object({
-  query: z.string().min(5),
-  maxBudget: z.number().min(0.01).max(100),
+  sessionId: z.string().uuid(),
   challengeId: z.string().min(1),
   userToken: z.string().min(1),
   network: z.string().optional()
 })
 
-// Transaction states that mean the funding transfer will never land
-const DEAD_TX_STATES = ['FAILED', 'DENIED', 'CANCELLED']
-
-// Verify with Circle that the upfront budget transfer actually happened:
-// the challenge completed, and it produced a transaction paying the treasury
-// at least maxBudget. Returns the transaction id and the payer's address.
-async function verifyFundingPayment(userToken: string, challengeId: string, maxBudget: number, isMainnet = false) {
-  const network = isMainnet ? 'arc-mainnet' : 'arc-testnet'
+// The challenge ties a Circle transaction to the durable, authenticated session.
+async function getChallengeTransaction(userToken: string, challengeId: string, network: NetworkId) {
   const apiKey = getCircleCredentials(network).apiKey
-  const treasuryAddress = getTreasuryAddress(network)
 
   const circleClient = initiateUserControlledWalletsClient({
     apiKey,
@@ -34,44 +26,16 @@ async function verifyFundingPayment(userToken: string, challengeId: string, maxB
   const challengeRes = await circleClient.getUserChallenge({ userToken, challengeId })
   const challenge = challengeRes.data?.challenge
 
-  if (!challenge || challenge.status !== 'COMPLETE') {
-    throw new Error('Payment challenge has not been completed')
-  }
+  if (!challenge) throw new Error('Payment challenge not found')
+  if (challenge.status === 'FAILED' || challenge.status === 'EXPIRED') return { status: challenge.status, transactionId: null }
+  if (challenge.status !== 'COMPLETE') return { status: challenge.status, transactionId: null }
 
   const transactionId = challenge.correlationIds?.[0]
   if (!transactionId) {
     throw new Error('Payment challenge has no associated transaction')
   }
 
-  const txRes = await circleClient.getTransaction({ userToken, id: transactionId })
-  const tx = txRes.data?.transaction
-
-  if (!tx) throw new Error('Funding transaction not found')
-
-  if (DEAD_TX_STATES.includes(tx.state)) {
-    throw new Error(`Funding transaction is in state ${tx.state}`)
-  }
-  if (tx.state !== 'COMPLETE' || !tx.txHash) {
-    throw new Error(`Funding transaction is ${tx.state}; wait for on-chain confirmation`)
-  }
-  if (tx.blockchain !== NETWORKS[network].circleChain || !tx.tokenId) {
-    throw new Error('Funding transaction network or asset is missing/mismatched')
-  }
-  const tokenRes = await circleClient.getToken({ id: tx.tokenId })
-  if (!isArcUsdcToken(tokenRes.data?.token, network)) {
-    throw new Error('Funding transaction did not transfer Arc USDC on the selected network')
-  }
-
-  if (!tx.destinationAddress || tx.destinationAddress.toLowerCase() !== treasuryAddress.toLowerCase()) {
-    throw new Error('Funding transaction was not sent to the agent treasury')
-  }
-
-  const paidAmount = (tx.amounts || []).reduce((acc, a) => acc + parseFloat(a), 0)
-  if (paidAmount < maxBudget) {
-    throw new Error(`Funding transaction amount ($${paidAmount}) does not cover the requested budget ($${maxBudget})`)
-  }
-
-  return { transactionId, payerAddress: tx.sourceAddress?.toLowerCase() }
+  return { status: challenge.status, transactionId }
 }
 
 export async function POST(request: NextRequest) {
@@ -91,81 +55,97 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid input', details: parsed.error.issues }, { status: 400 })
     }
 
-    const { query, maxBudget, challengeId, userToken, network: bodyNetwork } = parsed.data
+    const { sessionId, challengeId, userToken, network: bodyNetwork } = parsed.data
     const networkHeader = request.headers.get('x-network')
     const activeNetwork = bodyNetwork || networkHeader || 'arc-testnet'
     if (!['arc-mainnet', 'arc-testnet'].includes(activeNetwork)) {
       return NextResponse.json({ error: 'Invalid network' }, { status: 400 })
     }
-    const isMainnet = activeNetwork === 'arc-mainnet'
-
-    // Verify the upfront payment with Circle before doing any work
-    let funding
-    try {
-      funding = await verifyFundingPayment(userToken, challengeId, maxBudget, isMainnet)
-    } catch (verifyError: any) {
-      console.error('Funding verification failed:', verifyError?.response?.data || verifyError)
-      return NextResponse.json({ error: `Payment verification failed: ${verifyError.message}` }, { status: 402 })
+    const network = activeNetwork as NetworkId
+    const supabase = createAdminClient()
+    const { data: session, error: sessionError } = await supabase.from('research_sessions')
+      .select('id, user_id, query, budget_usdc, status, network, funding_challenge_id, funding_transaction_id, circle_user_id, payer_address')
+      .eq('id', sessionId).eq('user_id', user.id).single()
+    if (sessionError || !session || session.network !== network || session.funding_challenge_id !== challengeId) {
+      return NextResponse.json({ error: 'Funding session not found for this wallet and network' }, { status: 404 })
+    }
+    if (session.status === 'completed') return NextResponse.json({ error: 'Research already completed; see history' }, { status: 409 })
+    if (session.status === 'active') return NextResponse.json({ error: 'Research is already running; see history shortly' }, { status: 409 })
+    if (!['awaiting_funding', 'funding_pending'].includes(session.status)) {
+      return NextResponse.json({ error: `Payment attempt is ${session.status}; check refunds before trying again` }, { status: 409 })
     }
 
-    const supabase = createAdminClient()
+    // Verify the upfront payment with Circle before doing any work
+    let transactionId: string
+    let funding
+    try {
+      const challenge = await getChallengeTransaction(userToken, challengeId, network)
+      if (challenge.status === 'FAILED' || challenge.status === 'EXPIRED') {
+        await supabase.from('research_sessions').update({ status: 'failed' }).eq('id', session.id)
+        return NextResponse.json({ error: `Payment challenge ${challenge.status}; no research started` }, { status: 402 })
+      }
+      if (!challenge.transactionId) return NextResponse.json({ status: 'awaiting_funding', sessionId: session.id,
+        message: 'Payment authorization has not finished. Do not create another transfer yet.' }, { status: 202 })
+      transactionId = challenge.transactionId
+      if (session.funding_transaction_id && session.funding_transaction_id !== transactionId) {
+        throw new Error('Challenge transaction changed; manual review required')
+      }
+      funding = await inspectUserFunding({ transactionId, userToken, circleUserId: session.circle_user_id,
+        network, payerAddress: session.payer_address, budget: Number(session.budget_usdc) })
+    } catch (verifyError: any) {
+      console.error('Funding verification failed:', verifyError?.response?.data || verifyError)
+      return NextResponse.json({ error: `Payment verification failed: ${verifyError.message}` }, { status: 422 })
+    }
+    const { error: recordError } = await supabase.from('research_sessions')
+      .update({ funding_transaction_id: transactionId }).eq('id', session.id)
+      .in('status', ['awaiting_funding', 'funding_pending'])
+    if (recordError) return NextResponse.json({ error: 'Could not record funding transaction; contact support' }, { status: 503 })
+    if (DEAD_FUNDING_STATES.includes(funding.state)) {
+      await supabase.from('research_sessions').update({ status: 'failed' }).eq('id', session.id)
+      return NextResponse.json({ error: `Funding transaction ${funding.state}; no research started` }, { status: 402 })
+    }
+    if (funding.state !== 'COMPLETE' || !funding.txHash) {
+      await supabase.from('research_sessions').update({ status: 'funding_pending' }).eq('id', session.id).eq('status', 'awaiting_funding')
+      return NextResponse.json({ status: 'funding_pending', sessionId: session.id,
+        message: 'Payment submitted. Waiting for on-chain confirmation; do not pay again.' }, { status: 202 })
+    }
 
     // Replay guard: each funding transaction can only fund one research session
     const { data: priorUse } = await supabase
       .from('audit_events')
       .select('id')
       .eq('event_type', 'funding_tx_used')
-      .eq('details->>transactionId', funding.transactionId)
+      .eq('details->>transactionId', transactionId)
       .limit(1)
 
     if (priorUse && priorUse.length > 0) {
-      return NextResponse.json({ error: 'This payment has already been used to fund a research session' }, { status: 409 })
+      await supabase.from('research_sessions').update({ status: 'payment_review' }).eq('id', session.id)
+      return NextResponse.json({ error: 'This payment is already linked to a research session; manual review required. Do not pay again.' }, { status: 409 })
     }
 
     // Refund destination is the verified payer, falling back to the profile wallet
-    let refundAddress = funding.payerAddress
-    if (!refundAddress) {
-      const { data: profile } = await userClient
-        .from('profiles')
-        .select('wallet_address')
-        .eq('id', user.id)
-        .single()
-      refundAddress = profile?.wallet_address || undefined
-    }
+    const refundAddress = session.payer_address
     if (!refundAddress || !/^0x[0-9a-f]{40}$/i.test(refundAddress)) {
       return NextResponse.json({ error: 'Confirmed payment has no verified refund address; contact support before retrying' }, { status: 422 })
     }
 
-    // 1. Create a Research Session owned by the authenticated user
-    const { data: session, error: sessionError } = await supabase
-      .from('research_sessions')
-      .insert({
-        user_id: user.id,
-        query,
-        budget_usdc: maxBudget,
-        status: 'active',
-        network: activeNetwork
-      })
-      .select('id')
-      .single()
-
-    if (sessionError || !session) {
-      console.error("Session creation error:", sessionError)
-      return NextResponse.json({ error: 'Failed to create research session', details: sessionError?.message || "Unknown DB Error" }, { status: 500 })
-    }
+    const { data: claimed, error: claimError } = await supabase.rpc('claim_confirmed_user_research', { p_session_id: session.id })
+    if (claimError || !claimed) return NextResponse.json({ error: 'Payment is already being processed; check history' }, { status: 409 })
 
     const { error: guardError } = await supabase.from('audit_events').insert({
       event_type: 'funding_tx_used',
       details: {
-        transactionId: funding.transactionId,
+        transactionId,
         sessionId: session.id,
         userId: user.id,
-        amount: maxBudget
+        amount: Number(session.budget_usdc),
+        network,
+        txHash: funding.txHash
       }
     })
     if (guardError) {
-      await supabase.from('research_sessions').update({ status: 'failed' }).eq('id', session.id)
-      return NextResponse.json({ error: 'Funding transaction already used or replay guard unavailable' }, { status: guardError.code === '23505' ? 409 : 500 })
+      await supabase.from('research_sessions').update({ status: 'payment_review' }).eq('id', session.id)
+      return NextResponse.json({ error: 'Confirmed payment needs manual review before research or refund. Do not pay again.' }, { status: 409 })
     }
 
     const stream = new ReadableStream({
@@ -179,8 +159,8 @@ export async function POST(request: NextRequest) {
         try {
           const result = await runResearchAgent(
             session.id,
-            query,
-            maxBudget,
+            session.query,
+            Number(session.budget_usdc),
             refundAddress,
             (msg) => pushUpdate('progress', msg),
             request.headers.get('cookie') || undefined,
@@ -188,15 +168,16 @@ export async function POST(request: NextRequest) {
           )
 
           // Mark session complete and save the result payload
-          await supabase
+          const { error: saveError } = await supabase
             .from('research_sessions')
             .update({ status: 'completed', result: result })
             .eq('id', session.id)
+          if (saveError) throw new Error('Research finished but result could not be saved; contact support with the session ID')
 
           pushUpdate('done', { result, sessionId: session.id })
           controller.close()
         } catch (error: any) {
-          await supabase.from('research_sessions').update({ status: 'failed' }).eq('id', session.id)
+          await supabase.from('research_sessions').update({ status: error.message?.includes('result could not be saved') ? 'payment_review' : 'failed' }).eq('id', session.id)
           pushUpdate('error', error.message)
           controller.close()
         }

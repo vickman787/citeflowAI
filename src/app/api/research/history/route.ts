@@ -11,10 +11,15 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
+    const network = new URL(request.url).searchParams.get('network')
+    if (network !== 'arc-testnet' && network !== 'arc-mainnet') {
+      return NextResponse.json({ error: 'Invalid network' }, { status: 400 })
+    }
     const { data: sessions, error } = await supabase
       .from('research_sessions')
       .select('id, query, created_at, result')
       .eq('user_id', user.id)
+      .eq('network', network)
       .eq('status', 'completed')
       .not('result', 'is', null)
       .is('hidden_at', null)
