@@ -383,7 +383,18 @@ export async function runResearchAgent(
   }
 
   if (verifiedSources.length === 0 || verifiedSources.length !== new Set(finalOutput.citationsUsed).size) {
-    throw new Error('Grounding audit rejected one or more cited sources. The answer was withheld and unused funds will be refunded.')
+    if (walletAddress) {
+      onProgress?.('Grounding audit rejected the cited source. Withholding the answer and refunding the full budget...')
+      await recordAndAttemptRefund(sessionId, walletAddress, initialBudget, network, onProgress)
+    }
+
+    return {
+      answer: 'The available registered source did not pass the grounding audit for this question, so the answer was withheld and the full budget was queued for refund.',
+      citationsUsed: [],
+      purchasedSources: [],
+      refunded: true,
+      refundReason: 'grounding_audit_rejected'
+    }
   }
 
   // 5. Execute Payments ONLY for Verified Citations

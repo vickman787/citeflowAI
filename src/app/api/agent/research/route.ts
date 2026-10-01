@@ -214,9 +214,11 @@ export async function GET(request: NextRequest) {
         activeNetwork
       )
 
+      const finalStatus = (agentResult as any).refunded ? 'refund_pending' : 'completed'
+
       await supabase
         .from('research_sessions')
-        .update({ status: 'completed', result: agentResult })
+        .update({ status: finalStatus, result: agentResult })
         .eq('id', session.id)
 
       const paymentResponseData = {
@@ -230,6 +232,7 @@ export async function GET(request: NextRequest) {
 
       return NextResponse.json(
         {
+          status: finalStatus,
           answer: agentResult.answer,
           citationsUsed: agentResult.citationsUsed,
           purchasedSources: agentResult.purchasedSources,
@@ -423,9 +426,11 @@ export async function GET(request: NextRequest) {
       gwActiveNetwork
     )
 
+    const finalStatus = (agentResult as any).refunded ? 'refund_pending' : 'completed'
+
     await supabase
       .from('research_sessions')
-      .update({ status: 'completed', result: agentResult })
+      .update({ status: finalStatus, result: agentResult })
       .eq('id', session.id)
 
     const paymentResponseData = {
@@ -439,6 +444,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(
       {
+        status: finalStatus,
         answer: agentResult.answer,
         citationsUsed: agentResult.citationsUsed,
         purchasedSources: agentResult.purchasedSources,

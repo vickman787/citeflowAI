@@ -167,10 +167,11 @@ export async function POST(request: NextRequest) {
             activeNetwork
           )
 
-          // Mark session complete and save the result payload
+          // Mark successful research complete, but keep refund-only outcomes out
+          // of completed history while the refund is being reconciled.
           const { error: saveError } = await supabase
             .from('research_sessions')
-            .update({ status: 'completed', result: result })
+            .update({ status: (result as any).refunded ? 'refund_pending' : 'completed', result: result })
             .eq('id', session.id)
           if (saveError) throw new Error('Research finished but result could not be saved; contact support with the session ID')
 
