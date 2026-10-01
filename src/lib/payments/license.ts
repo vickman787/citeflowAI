@@ -10,6 +10,11 @@ function payoutIdempotencyKey(authorizationId: string): string {
   return `${digest.slice(0, 8)}-${digest.slice(8, 12)}-5${digest.slice(13, 16)}-8${digest.slice(17, 20)}-${digest.slice(20, 32)}`
 }
 
+function isTemporaryFloatShortfall(error: any): boolean {
+  const text = typeof error?.message === 'string' ? error.message : JSON.stringify(error || '')
+  return /insufficient token balance|asset amount owned by the wallet is insufficient/i.test(text)
+}
+
 async function submitPayout(authorizationId: string, recipient: string, amount: string, network: NetworkId): Promise<string> {
   const db = createAdminClient()
   // Replays use the same Circle idempotency key and the recipient/amount saved
@@ -66,7 +71,19 @@ export async function settleCreatorLicense(authorizationId: string, sourceId: st
 
   // Leave the claim in processing if Circle's response is uncertain. A fresh
   // transfer could pay twice; reconciliation must inspect this authorization.
-  const transactionId = await submitPayout(authorizationId, claimed.recipient_wallet, amount, network)
+  let transactionId: string
+  try {
+    transactionId = await submitPayout(authorizationId, claimed.recipient_wallet, amount, network)
+  } catch (error: any) {
+    if (network === 'arc-mainnet' && isTemporaryFloatShortfall(error)) {
+      // Circle Gateway payments can land in the treasury Gateway balance before
+      // they are available as on-chain wallet float. Keep the claimed payout in
+      // processing so the reconciliation job can retry with the same saved
+      // recipient and amount after Gateway sweep/finality.
+      return { status: 'submitted', transactionId: 'pending_gateway_sweep' }
+    }
+    throw error
+  }
 
   for (let attempt = 0; attempt < 12; attempt++) {
     let tx
