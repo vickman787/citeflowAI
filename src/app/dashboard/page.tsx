@@ -15,6 +15,8 @@ async function updateSourcePrice(formData: FormData) {
   const sourceId = formData.get('source_id') as string
   const newPrice = formData.get('price') as string
   if (!sourceId || !newPrice) return
+  const parsedPrice = parseFloat(newPrice)
+  if (!Number.isFinite(parsedPrice) || parsedPrice < 0 || parsedPrice > 1) return
 
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -30,7 +32,7 @@ async function updateSourcePrice(formData: FormData) {
 
   await supabase
     .from('sources')
-    .update({ price_usdc: parseFloat(newPrice) })
+    .update({ price_usdc: parsedPrice })
     .eq('id', sourceId)
     .eq('creator_id', creator.id)
 
@@ -238,6 +240,7 @@ export default async function DashboardPage() {
                               name="price" 
                               step="0.01" 
                               min="0" 
+                              max="1" 
                               defaultValue={parseFloat(s.price_usdc).toFixed(2)}
                               className="w-16 px-1 py-0.5 border border-[var(--color-border-subtle)] rounded bg-[var(--color-paper)] font-mono text-sm font-bold focus:outline-none focus:border-[var(--color-ink)]"
                             />

@@ -231,7 +231,7 @@ export default function DocsPage() {
               </p>
               <ul className="list-disc pl-5 space-y-2 text-[var(--color-ink)]">
                 <li>Provide the Title, URL, and the full content of your article.</li>
-                <li>Set your own <strong>Citation Price</strong> in USDC (e.g., $0.10 per citation).</li>
+                <li>Set your own <strong>Citation Price</strong> in USDC, up to a maximum of <strong>1 USDC</strong> per citation on both testnet and mainnet.</li>
                 <li>Your content is chunked, embedded into our Vector Database, and made available to the AI agent on {network.name}.</li>
               </ul>
             </div>

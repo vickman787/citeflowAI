@@ -130,7 +130,7 @@ export default function RegisterArticlePage() {
                   type="number"
                   required
                   min="0"
-                  max="100"
+                  max="1"
                   step="0.01"
                   value={price}
                   onChange={(e) => setPrice(e.target.value)}
@@ -141,7 +141,7 @@ export default function RegisterArticlePage() {
                 />
               </div>
               <p className="mt-2 text-xs text-[var(--color-olive)]">
-                Amount paid to your wallet each time the AI agent cites this source.
+                Amount charged each time the AI agent cites this source. Maximum citation fee is 1 USDC.
               </p>
             </div>
 

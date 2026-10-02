@@ -6,7 +6,7 @@ import { z } from 'zod'
 
 const registrationSchema = z.object({
   url: z.string().url(),
-  price: z.number().min(0).max(100),
+  price: z.number().min(0).max(1),
 })
 
 export async function POST(request: NextRequest) {
