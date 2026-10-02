@@ -10,6 +10,18 @@ const MAINNET_GATEWAY_MINTER = '0x2222222d7164433c4C09B0b0D809a9b52C04C205'
 const USDC_ARC_MAINNET = '0x3600000000000000000000000000000000000000'
 const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000'
 const BASE_SETTLEMENT_FEE = 0.0035
+const MIN_TREASURY_MINT_GAS_BALANCE = 0.01
+
+async function getTreasuryNativeBalance(treasuryAddress: string): Promise<number> {
+  const res = await fetch('https://rpc.mainnet.arc.io', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'eth_getBalance', params: [treasuryAddress, 'latest'] }),
+  })
+  const data = await res.json()
+  if (!res.ok || !data.result) throw new Error(`Arc balance lookup failed: ${data.error?.message || res.statusText}`)
+  return Number(BigInt(data.result)) / 1e18
+}
 
 export async function autoDisburseGatewayBalance(network: string = 'arc-mainnet'): Promise<{
   success: boolean
@@ -68,6 +80,14 @@ export async function autoDisburseGatewayBalance(network: string = 'arc-mainnet'
     const netWithdrawAmount = (available - BASE_SETTLEMENT_FEE - 0.001).toFixed(4)
     if (parseFloat(netWithdrawAmount) <= 0) {
       return { success: false, message: 'Net withdraw amount is zero or negative' }
+    }
+
+    const nativeBalance = await getTreasuryNativeBalance(treasuryAddress)
+    if (nativeBalance < MIN_TREASURY_MINT_GAS_BALANCE) {
+      return {
+        success: false,
+        message: `Treasury on-chain gas balance (${nativeBalance.toFixed(6)}) is below ${MIN_TREASURY_MINT_GAS_BALANCE}; not burning Gateway funds`,
+      }
     }
 
     const db = createAdminClient()
@@ -289,6 +309,14 @@ export async function withdrawGatewayTo(
       return {
         success: false,
         message: `Insufficient Gateway balance (${available.toFixed(4)}) for refund of ${amount}`,
+      }
+    }
+
+    const nativeBalance = await getTreasuryNativeBalance(treasuryAddress)
+    if (nativeBalance < MIN_TREASURY_MINT_GAS_BALANCE) {
+      return {
+        success: false,
+        message: `Treasury on-chain gas balance (${nativeBalance.toFixed(6)}) is below ${MIN_TREASURY_MINT_GAS_BALANCE}; not burning Gateway funds`,
       }
     }
 

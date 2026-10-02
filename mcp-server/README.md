@@ -4,10 +4,11 @@ Exposes CiteFlow AI's [x402](https://x402.org)-payable research endpoint as a na
 
 This folder is self-contained — copy it out of the CiteFlow repo into your own project if you like. It doesn't depend on anything else here.
 
-This MCP server uses a configured EVM private key and `GatewayClient`. To pay
-with a Circle-managed Agent Wallet through Circle CLI instead, use the
-[Circle Agent Wallet x402 guide](../CIRCLE_AGENT_WALLET_X402.md). The two flows
-call the same CiteFlow endpoint but manage the paying wallet differently.
+This MCP server uses a configured EVM private key and `GatewayClient`. Circle
+Agent Wallet through Circle CLI calls the same CiteFlow endpoint, but the Arc
+Mainnet Circle Agent Wallet flow is paused for public use while Gateway
+refund/reconciliation behavior is hardened. Prefer OKX Agentic Wallet, this MCP
+server, or the direct SDK flow for mainnet payments right now.
 
 ## Setup
 

@@ -310,12 +310,37 @@ export async function GET(request: NextRequest) {
 
   const gwBudget = parseFloat(gwRequirement.amount) / 1_000_000
   const gwAuthorization = (parsedPayment?.payload?.authorization || {}) as { from?: string; nonce?: string }
-  // Circle's verify "payer" is the wallet whose Gateway balance was debited, which
-  // is the correct refund destination. Fall back to the signed authorization's
-  // from field only if the facilitator did not report a payer.
-  const gwPayer = gwVerify.payer || gwAuthorization.from
-  if (!gwPayer || !/^0x[0-9a-f]{40}$/i.test(gwPayer)) {
-    return NextResponse.json({ error: 'Verified payment has no valid refund address' }, { status: 402 })
+  // Circle Gateway Agent Wallet payments are signed by a backing EOA, but the
+  // user-controlled account is the SCA passed to Circle CLI as --address. Refunds
+  // must return to that SCA when supplied, because funds sent to the backing EOA
+  // may not be movable by the user.
+  const gwPaymentPayer = gwVerify.payer || gwAuthorization.from
+  if (!gwPaymentPayer || !/^0x[0-9a-f]{40}$/i.test(gwPaymentPayer)) {
+    return NextResponse.json({ error: 'Verified payment has no valid payer address' }, { status: 402 })
+  }
+
+  const requestedRefundAddress = request.nextUrl.searchParams.get('refundAddress')?.trim()
+  if (!requestedRefundAddress || !/^0x[0-9a-f]{40}$/i.test(requestedRefundAddress)) {
+    return NextResponse.json(
+      {
+        error: 'Circle Agent Wallet payments must include refundAddress=<agent wallet SCA>',
+        details:
+          'Use the same Circle Agent Wallet address passed to circle services pay --address. Circle Gateway signs with a backing EOA, but unspent budget must refund to the user-controlled Agent Wallet SCA.',
+      },
+      { status: 400 }
+    )
+  }
+
+  const gwRefundAddress = requestedRefundAddress.toLowerCase()
+  if (gwRefundAddress === gwPaymentPayer.toLowerCase()) {
+    return NextResponse.json(
+      {
+        error: 'refundAddress appears to be the Circle backing EOA',
+        details:
+          'Do not use the signer/backing EOA as refundAddress. Use the Circle Agent Wallet SCA shown by circle wallet list and passed to circle services pay --address.',
+      },
+      { status: 400 }
+    )
   }
   const gwNonce = gwAuthorization.nonce ? String(gwAuthorization.nonce) : ''
 
@@ -355,7 +380,8 @@ export async function GET(request: NextRequest) {
       event_type: 'agent_eip3009_auth_used',
       details: {
         nonce: gwNonce,
-        payer: gwPayer,
+        payer: gwPaymentPayer,
+        refundAddress: gwRefundAddress,
         signer: gwAuthorization.from,
         verifiedPayer: gwVerify.payer,
         sessionId: session.id,
@@ -420,7 +446,7 @@ export async function GET(request: NextRequest) {
       session.id,
       gwQuery,
       gwBudget,
-      gwPayer,
+      gwRefundAddress,
       undefined,
       undefined,
       gwActiveNetwork
@@ -438,7 +464,8 @@ export async function GET(request: NextRequest) {
       transaction: gwSettlement.transaction,
       network: gwNetwork,
       amount: gwRequirement.amount,
-      payer: gwPayer,
+      payer: gwPaymentPayer,
+      refundAddress: gwRefundAddress,
     }
     const paymentResponseBase64 = Buffer.from(JSON.stringify(paymentResponseData)).toString('base64')
 

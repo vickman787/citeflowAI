@@ -330,22 +330,48 @@ console.log(data.purchasedSources)  // which creators just got paid`}
             <div className="bg-[var(--color-panel)] p-6 border border-[var(--color-border-subtle)] rounded shadow-sm">
               <h3 className="text-xl font-bold mb-3 flex items-center gap-2">
                 <Wallet className="text-[var(--color-signal-green)]" size={20} />
-                Circle Agent Wallet ({network.badge})
+                Circle Agent Wallet ({network.badge}){isMainnet ? ' — paused for public mainnet use' : ' — testnet sandbox only'}
               </h3>
               <p className="text-[var(--color-soft-ink)] mb-4">
-                Circle Agent Wallet provides a managed alternative to supplying a raw EVM private key. The Circle CLI logs in the agent wallet, inspects the x402 challenge, checks or funds its Gateway balance, estimates the charge, and pays the research endpoint.
+                {isMainnet
+                  ? 'For now, do not use Circle Agent Wallet for public CiteFlowAI research payments on Arc Mainnet. The Circle Gateway Agent Wallet flow signs with a backing EOA and can require Gateway burn/mint reconciliation before unspent budget is refunded. Until that mainnet refund path is more predictable, agents should use the OKX Agentic Wallet flow, the direct SDK example above, or the MCP integration below.'
+                  : 'On Arc Testnet, Circle Agent Wallet remains useful for sandbox testing with test USDC. The same refund-address rule still applies so the endpoint can return unspent test budget to the Agent Wallet SCA instead of the backing EOA.'}
               </p>
+              <div className="mb-4 text-sm bg-[var(--color-rust)]/10 border border-[var(--color-rust)]/30 rounded p-3 text-[var(--color-soft-ink)]">
+                <strong className="text-[var(--color-ink)]">
+                  {isMainnet ? 'Recommended mainnet agent wallet path:' : 'Testnet note:'}
+                </strong>{' '}
+                {isMainnet
+                  ? 'use OKX Agentic Wallet for agent-to-agent tests and demos. In our current Arc Mainnet testing, OKX handled the payment and unspent-budget refund path more cleanly. Keep Circle Agent Wallet for internal mainnet experiments only.'
+                  : 'testnet uses fake USDC, so it is safe for Circle Agent Wallet experiments. Do not treat testnet behavior as proof that the Arc Mainnet refund path is production-ready.'}
+              </div>
+              <details className="rounded border border-[var(--color-border-subtle)] bg-[var(--color-panel-deep)]/40 p-4">
+                <summary className="cursor-pointer font-semibold text-[var(--color-ink)]">
+                  {isMainnet ? 'Internal Circle Agent Wallet mainnet command, experimental' : 'Circle Agent Wallet testnet command'}
+                </summary>
+                <p className="text-[var(--color-soft-ink)] mt-3 mb-4 text-sm">
+                  The endpoint URL must include
+                  <code className="mx-1 px-1.5 py-0.5 bg-[var(--color-panel-deep)] rounded">refundAddress=0xYOUR_AGENT_WALLET_ADDRESS</code>.
+                  Use the same Circle Agent Wallet SCA that you pass to
+                  <code className="mx-1 px-1.5 py-0.5 bg-[var(--color-panel-deep)] rounded">--address</code>.
+                  Do not use the backing EOA/signer address.
+                </p>
               <pre className="bg-[var(--color-panel-deep)] border border-[var(--color-border-subtle)] rounded p-4 overflow-x-auto text-sm font-mono text-[var(--color-ink)]">
 {`circle services pay \\
-  "https://citeflowai.xyz/api/agent/research?q=YOUR_ENCODED_QUESTION" \\
+  "https://citeflowai.xyz/api/agent/research?q=YOUR_ENCODED_QUESTION&refundAddress=0xYOUR_AGENT_WALLET_ADDRESS" \\
   --address 0xYOUR_AGENT_WALLET_ADDRESS \\
   --chain ${network.circleChain} \\
   --estimate \\
   --output json`}
               </pre>
-              <p className="text-[var(--color-soft-ink)] mt-4 text-sm">
-                Estimate first and show the price, network, seller, and question before paying. The Agent Wallet must have enough {network.name} Gateway balance.
+              <p className="text-[var(--color-soft-ink)] mt-3 text-sm">
+                To execute after estimating, run the same command without
+                <code className="mx-1 px-1.5 py-0.5 bg-[var(--color-panel-deep)] rounded">--estimate</code>
+                and add
+                <code className="mx-1 px-1.5 py-0.5 bg-[var(--color-panel-deep)] rounded">--max-amount 1 --timeout 120</code>.
+                This Circle Agent Wallet method is different from the direct SDK/MCP examples above because Circle Gateway signs with a backing EOA while refunds must go to the Agent Wallet SCA.
               </p>
+              </details>
               <a
                 href="https://github.com/vickman787/citeflowAI/blob/main/CIRCLE_AGENT_WALLET_X402.md"
                 target="_blank"

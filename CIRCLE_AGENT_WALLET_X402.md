@@ -1,5 +1,10 @@
 # Use Circle Agent Wallet for x402 Research on Arc Mainnet
 
+> **Arc Mainnet status: paused for public use.** Prefer OKX Agentic Wallet, the
+> direct Gateway SDK flow, or the MCP server for mainnet agent payments. This
+> Circle Agent Wallet guide is retained for testnet and internal mainnet testing
+> while Gateway refund/reconciliation behavior is hardened.
+
 This is the end to end guide for letting an artificial intelligence agent pay an x402 research endpoint with Circle Agent Wallet on Arc Mainnet (Chain ID 5042). This is an alternative to the direct `GatewayClient` and CiteFlow AI MCP server integrations: Circle CLI manages the Agent Wallet and submits the x402 payment directly.
 
 ## Prerequisites
@@ -87,9 +92,17 @@ circle gateway deposit `
 
 ## 6. Estimate the Payment
 
+You must include `refundAddress=$WALLET_ADDRESS` in the request URL, where
+`$WALLET_ADDRESS` is the Circle Agent Wallet SCA returned by `circle wallet
+list` and passed to `circle services pay --address`. Do not use the backing
+EOA/signer address. Circle Gateway signs with that backing EOA, but unspent
+budget must return to the Agent Wallet SCA that the user controls. CiteFlow AI
+rejects Circle Agent Wallet payments that omit this value or set it to the
+backing EOA.
+
 ```powershell
 circle services pay `
-  "https://citeflowai.xyz/api/agent/research?q=YOUR_ENCODED_QUESTION" `
+  "https://citeflowai.xyz/api/agent/research?q=YOUR_ENCODED_QUESTION&refundAddress=$WALLET_ADDRESS" `
   --address $WALLET_ADDRESS `
   --chain ARC `
   --estimate `
@@ -102,7 +115,7 @@ Execute the paid research request:
 
 ```powershell
 circle services pay `
-  "https://citeflowai.xyz/api/agent/research?q=YOUR_ENCODED_QUESTION" `
+  "https://citeflowai.xyz/api/agent/research?q=YOUR_ENCODED_QUESTION&refundAddress=$WALLET_ADDRESS" `
   --address $WALLET_ADDRESS `
   --chain ARC `
   --max-amount 1 `

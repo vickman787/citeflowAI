@@ -5,7 +5,7 @@
 
 CiteFlow AI is a Web3 native artificial intelligence research agent built to solve a fundamental problem: content creators are rarely compensated when an agent scrapes and synthesizes their work. A researcher locks a budget, the agent grounds its answer only in registered, verified sources, and every source it actually cites gets paid on the spot: no subscriptions, no ad revenue splits, no invoices.
 
-CiteFlow AI is payable by humans through the web terminal, and by autonomous agents directly over HTTP via the [x402 payment protocol](https://x402.org), [Circle Agent Wallet](CIRCLE_AGENT_WALLET_X402.md), or the bundled [MCP server](mcp-server/README.md): so Claude, Codex, Antigravity, or any x402 aware client can pay for and run a research session with no CiteFlow AI login or API key.
+CiteFlow AI is payable by humans through the web terminal, and by autonomous agents directly over HTTP via the [x402 payment protocol](https://x402.org), OKX Agentic Wallet, a direct Gateway SDK integration, or the bundled [MCP server](mcp-server/README.md): so Claude, Codex, Antigravity, or any x402 aware client can pay for and run a research session with no CiteFlow AI login or API key. Circle Agent Wallet support on Arc Mainnet is currently paused for public use while its Gateway refund/reconciliation path is hardened.
 
 ![Next.js](https://img.shields.io/badge/Next.js-16-black?style=flat&logo=next.js)
 ![Supabase](https://img.shields.io/badge/Supabase-Database-3ECF8E?style=flat&logo=supabase)
@@ -34,7 +34,8 @@ CiteFlow AI is payable by humans through the web terminal, and by autonomous age
 * **Strict grounding gate:** If no registered sources match the query, the agent refuses to synthesize an answer and queues the unused budget for refund.
 * **Multi model LLM fallback:** Uses OpenAI first when `OPENAI_API_KEY` is configured, then falls back to Gemini and OpenRouter if a provider is unavailable.
 * **Live ledger:** A terminal themed dashboard showing real time budgets, citations, and payouts as they settle on chain.
-* **x402 agent endpoint and agent integrations:** `/api/agent/research` is a spec compliant, agent payable HTTP 402 endpoint. Call it with the direct Gateway SDK, a [Circle Agent Wallet](CIRCLE_AGENT_WALLET_X402.md), or the `citeflow_research` tool from the bundled [MCP server](mcp-server/README.md).
+* **x402 agent endpoint and agent integrations:** `/api/agent/research` is a spec compliant, agent payable HTTP 402 endpoint. Call it with OKX Agentic Wallet, the direct Gateway SDK, or the `citeflow_research` tool from the bundled [MCP server](mcp-server/README.md).
+  * Circle Agent Wallet is paused for public Arc Mainnet use. If testing it internally or on testnet, calls must include `refundAddress=<agent-wallet-sca>` in the endpoint URL, using the same SCA passed to `circle services pay --address`. Circle signs Gateway payments with a backing EOA, but CiteFlow AI refunds unspent budget only to the user-controlled Agent Wallet SCA.
 
 ## Primitives for builders (open source)
 
@@ -113,7 +114,7 @@ npm run dev
 
 3. Open [http://localhost:3000](http://localhost:3000) with your browser to see the live app.
 
-For agent integrations, see the [web documentation](src/app/docs/page.tsx), [Circle Agent Wallet guide](CIRCLE_AGENT_WALLET_X402.md), and [MCP server guide](mcp-server/README.md).
+For agent integrations, see the [web documentation](src/app/docs/page.tsx) and [MCP server guide](mcp-server/README.md). The [Circle Agent Wallet guide](CIRCLE_AGENT_WALLET_X402.md) is retained for testnet and internal mainnet testing while public Arc Mainnet use is paused.
 
 ## License
 MIT License
