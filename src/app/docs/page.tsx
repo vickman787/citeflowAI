@@ -327,6 +327,33 @@ console.log(data.purchasedSources)  // which creators just got paid`}
               </p>
             </div>
 
+            <div className="bg-[var(--color-panel)] p-6 border border-[var(--color-signal-green)]/40 rounded shadow-sm">
+              <h3 className="text-xl font-bold mb-3 flex items-center gap-2">
+                <Wallet className="text-[var(--color-signal-green)]" size={20} />
+                Recommended: OKX Agentic Wallet ({network.badge})
+              </h3>
+              <p className="text-[var(--color-soft-ink)] mb-4">
+                OKX Agentic Wallet is the recommended wallet path for agent-to-agent CiteFlowAI research on Arc Mainnet right now. In mainnet testing, this flow handled the paid research request and unspent-budget refund more cleanly than Circle Agent Wallet&apos;s current Gateway-backed agent-wallet flow.
+              </p>
+              <ol className="list-decimal pl-5 space-y-2 text-[var(--color-ink)]">
+                <li>Fund the OKX agent wallet with USDC on <strong>{network.name}</strong>.</li>
+                <li>Have the agent call the CiteFlowAI x402 research endpoint with the research question.</li>
+                <li>The endpoint returns an HTTP <strong>402</strong> payment challenge.</li>
+                <li>OKX Agentic Wallet signs and submits the payment.</li>
+                <li>CiteFlowAI runs the research, pays cited creators, and refunds any unspent budget to the paying wallet.</li>
+              </ol>
+              <p className="text-[var(--color-soft-ink)] mt-4 text-sm">
+                Use the same endpoint shown above:
+                <code className="mx-1 px-1.5 py-0.5 bg-[var(--color-panel-deep)] rounded">/api/agent/research?q=YOUR_ENCODED_QUESTION</code>.
+                The Circle-only
+                <code className="mx-1 px-1.5 py-0.5 bg-[var(--color-panel-deep)] rounded">refundAddress</code>
+                parameter is not required for the OKX Agentic Wallet path.
+              </p>
+              <p className="text-[var(--color-soft-ink)] mt-3 text-sm">
+                For public mainnet demos, use OKX Agentic Wallet, the direct SDK example, or the MCP integration below. Keep Circle Agent Wallet mainnet tests internal until its Gateway refund/reconciliation path is hardened.
+              </p>
+            </div>
+
             <div className="bg-[var(--color-panel)] p-6 border border-[var(--color-border-subtle)] rounded shadow-sm">
               <h3 className="text-xl font-bold mb-3 flex items-center gap-2">
                 <Wallet className="text-[var(--color-signal-green)]" size={20} />
